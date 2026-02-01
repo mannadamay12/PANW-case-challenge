@@ -4,7 +4,6 @@ import type { JournalEntry } from "../../types/journal";
 import { useArchiveEntry, useUnarchiveEntry, useUpdateEntry } from "../../hooks/use-journal";
 import { useUIStore } from "../../stores/ui-store";
 import { cn } from "../../lib/utils";
-import { EmotionBadges } from "./EmotionBadges";
 import { DatePicker } from "../ui/DatePicker";
 import { deriveTitle, formatEntryDate } from "../../lib/entry-utils";
 
@@ -127,11 +126,6 @@ export function EntryCard({ entry, isSelected, animationDelay = 0 }: EntryCardPr
           {hasMore && "..."}
         </p>
       )}
-
-      {/* Emotions row (muted grey badges) */}
-      <div className="mt-2">
-        <EmotionBadges entryId={entry.id} compact />
-      </div>
 
       {/* Date and archived badge */}
       <div className="mt-1 flex items-center gap-2 relative">

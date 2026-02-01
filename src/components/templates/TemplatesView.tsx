@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus, CircleNotch } from "@phosphor-icons/react";
+import { ArrowLeft, Plus, CircleNotch } from "@phosphor-icons/react";
 import { useTemplates, useDeleteTemplate } from "../../hooks/use-templates";
 import { useUIStore } from "../../stores/ui-store";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
@@ -17,6 +17,7 @@ export function TemplatesView() {
     editingTemplateId,
     setEditingTemplateId,
     openEditorWithTemplate,
+    setActiveView,
   } = useUIStore();
 
   const [deleteConfirmTemplate, setDeleteConfirmTemplate] = useState<Template | null>(null);
@@ -77,10 +78,19 @@ export function TemplatesView() {
     <div className="h-full flex flex-col bg-sanctuary-bg">
       {/* Header */}
       <div className="px-6 pt-6 pb-4 flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-sanctuary-text">Gallery</h1>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setActiveView("journal")}
+            className="w-8 h-8 rounded-full bg-sanctuary-hover flex items-center justify-center text-sanctuary-muted hover:bg-sanctuary-selected hover:text-sanctuary-text transition-colors cursor-pointer"
+            title="Back to dashboard"
+          >
+            <ArrowLeft className="h-4 w-4" weight="bold" />
+          </button>
+          <h1 className="text-2xl font-bold text-sanctuary-text">Gallery</h1>
+        </div>
         <button
           onClick={handleNewTemplate}
-          className="w-8 h-8 rounded-full bg-sanctuary-hover flex items-center justify-center text-sanctuary-muted hover:bg-sanctuary-selected transition-colors"
+          className="w-8 h-8 rounded-full bg-sanctuary-hover flex items-center justify-center text-sanctuary-muted hover:bg-sanctuary-selected transition-colors cursor-pointer"
           title="New template"
         >
           <Plus className="h-4 w-4" weight="bold" />
