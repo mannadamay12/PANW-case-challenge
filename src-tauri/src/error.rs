@@ -22,6 +22,9 @@ pub enum AppError {
 
     #[error("LLM error: {0}")]
     Llm(String),
+
+    #[error("Storage error: {0}")]
+    Storage(String),
 }
 
 impl serde::Serialize for AppError {

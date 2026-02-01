@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-export type MainView = "journal" | "chat" | "library";
+export type MainView = "dashboard" | "journal" | "chat" | "library";
 
 interface UIState {
   // View switching
@@ -44,11 +44,16 @@ interface UIState {
   pendingTemplateTitle: string | null;
   openEditorWithTemplate: (templateText: string, templateTitle: string) => void;
   clearPendingTemplate: () => void;
+
+  // AI Panel
+  isAIPanelOpen: boolean;
+  setAIPanelOpen: (open: boolean) => void;
+  toggleAIPanel: () => void;
 }
 
 export const useUIStore = create<UIState>((set) => ({
-  // View switching
-  activeView: "journal",
+  // View switching - default to dashboard
+  activeView: "dashboard",
   setActiveView: (view) => set({ activeView: view }),
 
   // Selection
@@ -103,4 +108,9 @@ export const useUIStore = create<UIState>((set) => ({
     }),
   clearPendingTemplate: () =>
     set({ pendingTemplateText: null, pendingTemplateTitle: null }),
+
+  // AI Panel - collapsed by default
+  isAIPanelOpen: false,
+  setAIPanelOpen: (open) => set({ isAIPanelOpen: open }),
+  toggleAIPanel: () => set((s) => ({ isAIPanelOpen: !s.isAIPanelOpen })),
 }));

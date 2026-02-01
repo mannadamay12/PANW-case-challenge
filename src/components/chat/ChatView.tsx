@@ -8,9 +8,11 @@ import { OllamaSetupBanner, OllamaStatusIndicator } from "./OllamaStatus";
 import { useChatStore } from "../../stores/chat-store";
 import { useOllamaStatus } from "../../hooks/use-chat";
 
+const GLOBAL_KEY = "__global__";
+
 export function ChatView() {
   const clearMessages = useChatStore((state) => state.clearMessages);
-  const messageCount = useChatStore((state) => state.messages.length);
+  const messages = useChatStore((state) => state.messagesByEntry[GLOBAL_KEY] || []);
   const { data: status } = useOllamaStatus();
 
   const isReady = status?.is_running && status?.model_available;
@@ -23,11 +25,11 @@ export function ChatView() {
           <h2 className="text-lg font-semibold text-sanctuary-text">Chat</h2>
           <OllamaStatusIndicator />
         </div>
-        {messageCount > 0 && (
+        {messages.length > 0 && (
           <Button
             variant="ghost"
             size="sm"
-            onClick={clearMessages}
+            onClick={() => clearMessages(GLOBAL_KEY)}
             className="text-sanctuary-muted hover:text-red-600"
           >
             <Trash2 className="h-4 w-4 mr-1" />
