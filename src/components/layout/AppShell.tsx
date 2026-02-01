@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { PanelLeftClose, PanelLeft, Plus, Archive, MessageCircle, BookOpen } from "lucide-react";
+import { PanelLeftClose, PanelLeft, Plus, Archive, MessageCircle, BookOpen, BookTemplate, LayoutDashboard } from "lucide-react";
 import { useUIStore } from "../../stores/ui-store";
 import { useDeleteEntry, useGenerateMissingTitles } from "../../hooks/use-journal";
 import { useOllamaStatus } from "../../hooks/use-chat";
@@ -9,6 +9,8 @@ import { SearchBar } from "../journal/SearchBar";
 import { EntryList } from "../journal/EntryList";
 import { Editor } from "../journal/Editor";
 import { ChatView } from "../chat/ChatView";
+import { TemplatesView } from "../templates/TemplatesView";
+import { Dashboard } from "../dashboard";
 import { cn } from "../../lib/utils";
 import logoImage from "../../assets/logo.png";
 
@@ -99,6 +101,18 @@ export function AppShell() {
         {/* View tabs */}
         <div className="flex border-b border-sanctuary-border">
           <button
+            onClick={() => setActiveView("dashboard")}
+            className={cn(
+              "flex-1 flex items-center justify-center gap-2 py-3 text-sm font-medium transition-colors",
+              activeView === "dashboard"
+                ? "text-sanctuary-accent border-b-2 border-sanctuary-accent"
+                : "text-sanctuary-muted hover:text-sanctuary-text"
+            )}
+          >
+            <LayoutDashboard className="h-4 w-4" />
+            Home
+          </button>
+          <button
             onClick={() => setActiveView("journal")}
             className={cn(
               "flex-1 flex items-center justify-center gap-2 py-3 text-sm font-medium transition-colors",
@@ -121,6 +135,18 @@ export function AppShell() {
           >
             <MessageCircle className="h-4 w-4" />
             Chat
+          </button>
+          <button
+            onClick={() => setActiveView("library")}
+            className={cn(
+              "flex-1 flex items-center justify-center gap-2 py-3 text-sm font-medium transition-colors",
+              activeView === "library"
+                ? "text-sanctuary-accent border-b-2 border-sanctuary-accent"
+                : "text-sanctuary-muted hover:text-sanctuary-text"
+            )}
+          >
+            <BookTemplate className="h-4 w-4" />
+            Library
           </button>
         </div>
 
@@ -161,22 +187,18 @@ export function AppShell() {
         )}
 
         {/* Content area */}
-        {activeView === "chat" ? (
+        {activeView === "dashboard" ? (
+          <Dashboard />
+        ) : activeView === "chat" ? (
           <ChatView />
-        ) : isEditorOpen ? (
+        ) : activeView === "library" ? (
+          <TemplatesView />
+        ) : activeView === "journal" && isEditorOpen ? (
           <Editor />
+        ) : activeView === "journal" ? (
+          <Dashboard />
         ) : (
-          <div className="flex-1 flex items-center justify-center">
-            <div className="text-center">
-              <p className="text-sanctuary-muted mb-4">
-                Select an entry or create a new one
-              </p>
-              <Button onClick={handleNewEntry}>
-                <Plus className="h-4 w-4 mr-2" />
-                New Entry
-              </Button>
-            </div>
-          </div>
+          <Dashboard />
         )}
       </main>
 

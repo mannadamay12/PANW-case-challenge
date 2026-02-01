@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-export type MainView = "journal" | "chat";
+export type MainView = "dashboard" | "journal" | "chat" | "library";
 
 interface UIState {
   // View switching
@@ -32,11 +32,28 @@ interface UIState {
   // Modals
   deleteConfirmId: string | null;
   setDeleteConfirmId: (id: string | null) => void;
+
+  // Template modals
+  showTemplateModal: boolean;
+  setShowTemplateModal: (show: boolean) => void;
+  editingTemplateId: string | null;
+  setEditingTemplateId: (id: string | null) => void;
+
+  // Template to editor flow
+  pendingTemplateText: string | null;
+  pendingTemplateTitle: string | null;
+  openEditorWithTemplate: (templateText: string, templateTitle: string) => void;
+  clearPendingTemplate: () => void;
+
+  // AI Panel
+  isAIPanelOpen: boolean;
+  setAIPanelOpen: (open: boolean) => void;
+  toggleAIPanel: () => void;
 }
 
 export const useUIStore = create<UIState>((set) => ({
-  // View switching
-  activeView: "journal",
+  // View switching - default to dashboard
+  activeView: "dashboard",
   setActiveView: (view) => set({ activeView: view }),
 
   // Selection
@@ -70,4 +87,30 @@ export const useUIStore = create<UIState>((set) => ({
   // Modals
   deleteConfirmId: null,
   setDeleteConfirmId: (id) => set({ deleteConfirmId: id }),
+
+  // Template modals
+  showTemplateModal: false,
+  setShowTemplateModal: (show) => set({ showTemplateModal: show }),
+  editingTemplateId: null,
+  setEditingTemplateId: (id) => set({ editingTemplateId: id }),
+
+  // Template to editor flow
+  pendingTemplateText: null,
+  pendingTemplateTitle: null,
+  openEditorWithTemplate: (templateText, templateTitle) =>
+    set({
+      pendingTemplateText: templateText,
+      pendingTemplateTitle: templateTitle,
+      isEditorOpen: true,
+      isNewEntry: true,
+      selectedEntryId: null,
+      activeView: "journal",
+    }),
+  clearPendingTemplate: () =>
+    set({ pendingTemplateText: null, pendingTemplateTitle: null }),
+
+  // AI Panel - collapsed by default
+  isAIPanelOpen: false,
+  setAIPanelOpen: (open) => set({ isAIPanelOpen: open }),
+  toggleAIPanel: () => set((s) => ({ isAIPanelOpen: !s.isAIPanelOpen })),
 }));
