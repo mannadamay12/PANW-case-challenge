@@ -1,11 +1,11 @@
-import { Plus, SidebarSimple, MagicWand } from "@phosphor-icons/react";
+import { Plus, SidebarSimple, MagicWand, X } from "@phosphor-icons/react";
 import { FontSizeMenu } from "./FontSizeMenu";
 import { EditorOptionsMenu } from "./EditorOptionsMenu";
 import { useUIStore } from "../../stores/ui-store";
 import { cn } from "../../lib/utils";
 
 const iconButtonClass = cn(
-  "flex items-center justify-center p-1.5 rounded-md",
+  "flex items-center justify-center p-1.5 rounded-md cursor-pointer",
   "text-sanctuary-muted hover:text-sanctuary-text hover:bg-sanctuary-hover",
   "transition-colors"
 );
@@ -36,6 +36,7 @@ export function Titlebar({
     isAIPanelOpen,
     toggleAIPanel,
     isEditorOpen,
+    closeEditor,
   } = useUIStore();
 
   const handleOpenGallery = () => {
@@ -57,15 +58,25 @@ export function Titlebar({
       data-tauri-drag-region
       className="titlebar-drag-region h-[38px] flex items-center justify-between bg-sanctuary-bg border-b border-sanctuary-border flex-shrink-0"
     >
-      {/* Left section: Traffic lights space + New entry + Sidebar toggle */}
+      {/* Left section: Traffic lights space + Close/New entry + Sidebar toggle */}
       <div className="flex items-center gap-1 pl-[70px]">
-        <button
-          onClick={onNewEntry}
-          title="New entry"
-          className={cn(iconButtonClass, "titlebar-no-drag")}
-        >
-          <Plus className="h-4 w-4" />
-        </button>
+        {isEditorOpen ? (
+          <button
+            onClick={closeEditor}
+            title="Close entry"
+            className={cn(iconButtonClass, "titlebar-no-drag")}
+          >
+            <X className="h-4 w-4" />
+          </button>
+        ) : (
+          <button
+            onClick={onNewEntry}
+            title="New entry"
+            className={cn(iconButtonClass, "titlebar-no-drag")}
+          >
+            <Plus className="h-4 w-4" />
+          </button>
+        )}
         <button
           onClick={toggleSidebar}
           title={isSidebarOpen ? "Collapse sidebar" : "Expand sidebar"}

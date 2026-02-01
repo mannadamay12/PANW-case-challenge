@@ -23,7 +23,7 @@ export function StreakCard({
   return (
     <div
       className={cn(
-        "bg-sanctuary-card border border-sanctuary-border rounded-xl p-5",
+        "bg-sanctuary-card border border-sanctuary-border rounded-xl p-5 transition-all hover:-translate-y-0.5 hover:shadow-md",
         isOnFire && "ring-2 ring-orange-400/50 border-orange-400/30"
       )}
     >
@@ -45,29 +45,21 @@ export function StreakCard({
           <p className="text-sm text-sanctuary-muted mt-1">Current streak</p>
         </div>
 
-        <div
+        <Flame
+          weight="fill"
           className={cn(
-            "w-14 h-14 rounded-full flex items-center justify-center",
+            "h-8 w-8",
             isOnFire
-              ? "bg-orange-500/20"
-              : "bg-sanctuary-accent/10"
+              ? "text-orange-500 animate-subtle-pulse"
+              : currentStreak > 0
+                ? "text-sanctuary-text"
+                : "text-sanctuary-muted"
           )}
-        >
-          <Flame
-            className={cn(
-              "h-7 w-7",
-              isOnFire
-                ? "text-orange-500"
-                : currentStreak > 0
-                  ? "text-sanctuary-accent"
-                  : "text-sanctuary-muted"
-            )}
-          />
-        </div>
+        />
       </div>
 
       <div className="mt-4 pt-3 border-t border-sanctuary-border flex items-center gap-2 text-sm text-sanctuary-muted">
-        <Trophy className="h-4 w-4" />
+        <Trophy className="h-4 w-4" weight="fill" />
         <span>
           Longest: <strong className="text-sanctuary-text">{longestStreak}</strong>{" "}
           {longestStreak === 1 ? "day" : "days"}

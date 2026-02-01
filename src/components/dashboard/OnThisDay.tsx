@@ -26,7 +26,7 @@ export function OnThisDay({ entries, isLoading, onOpenEntry }: OnThisDayProps) {
   const preview = entry.content.slice(0, 120);
 
   return (
-    <div className="bg-sanctuary-card border border-sanctuary-border rounded-xl p-4">
+    <div className="bg-sanctuary-card border border-sanctuary-border rounded-xl p-4 animate-fade-up">
       <div className="flex items-center gap-2 mb-3">
         <Calendar className="h-4 w-4 text-sanctuary-accent" />
         <h3 className="text-sm font-medium text-sanctuary-text">On This Day</h3>
@@ -37,7 +37,7 @@ export function OnThisDay({ entries, isLoading, onOpenEntry }: OnThisDayProps) {
 
       <button
         onClick={() => onOpenEntry(entry.id)}
-        className="w-full text-left group"
+        className="w-full text-left group cursor-pointer"
       >
         <div className="space-y-2">
           <h4 className="font-medium text-sanctuary-text group-hover:text-sanctuary-accent transition-colors line-clamp-1">

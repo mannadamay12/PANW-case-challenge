@@ -5,11 +5,15 @@ import type { Template } from "../../types/templates";
 interface TemplateCardProps {
   template: Template;
   onUse: (template: Template) => void;
+  animationDelay?: number;
 }
 
-export function TemplateCard({ template, onUse }: TemplateCardProps) {
+export function TemplateCard({ template, onUse, animationDelay = 0 }: TemplateCardProps) {
   return (
-    <div className="bg-white dark:bg-sanctuary-card rounded-2xl p-4 shadow-sm">
+    <div
+      className="bg-white dark:bg-sanctuary-card rounded-2xl p-4 shadow-sm cursor-pointer animate-fade-up hover:shadow-md transition-shadow"
+      style={{ animationDelay: `${animationDelay}ms` }}
+    >
       {/* Header row: icon and plus button */}
       <div className="flex items-start justify-between mb-4">
         <TemplateIcon
@@ -19,7 +23,7 @@ export function TemplateCard({ template, onUse }: TemplateCardProps) {
         />
         <button
           onClick={() => onUse(template)}
-          className="w-8 h-8 rounded-full bg-sanctuary-hover flex items-center justify-center text-sanctuary-muted hover:bg-sanctuary-selected transition-colors"
+          className="w-8 h-8 rounded-full bg-sanctuary-hover flex items-center justify-center text-sanctuary-muted hover:bg-sanctuary-selected transition-colors cursor-pointer active:scale-95"
           title="Use template"
         >
           <Plus className="h-4 w-4" weight="bold" />

@@ -15,11 +15,11 @@ export function EmptyState({
   return (
     <div
       className={cn(
-        "flex flex-col items-center justify-center py-12 px-4 text-center",
+        "flex flex-col items-center justify-center py-12 px-4 text-center animate-fade-up",
         className
       )}
     >
-      <div className="rounded-full bg-sanctuary-bg p-4 mb-4">
+      <div className="rounded-full bg-sanctuary-bg p-4 mb-4 animate-float">
         <BookOpenText className="h-8 w-8 text-sanctuary-muted" />
       </div>
       <h3 className="text-lg font-medium text-sanctuary-text mb-1">{title}</h3>

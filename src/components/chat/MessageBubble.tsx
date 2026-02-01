@@ -1,12 +1,15 @@
 import { useState } from "react";
+import { CaretRight } from "@phosphor-icons/react";
 import { cn } from "../../lib/utils";
+import { SourceCardList } from "./SourceCard";
 import type { ChatMessage } from "../../types/chat";
 
 interface MessageBubbleProps {
   message: ChatMessage;
+  compact?: boolean;
 }
 
-export function MessageBubble({ message }: MessageBubbleProps) {
+export function MessageBubble({ message, compact = false }: MessageBubbleProps) {
   const isUser = message.role === "user";
   const [sourcesExpanded, setSourcesExpanded] = useState(false);
   const hasSources = message.sources && message.sources.length > 0;
@@ -20,16 +23,27 @@ export function MessageBubble({ message }: MessageBubbleProps) {
     >
       <div
         className={cn(
-          "max-w-[80%] rounded-2xl px-4 py-3",
+          "rounded-2xl",
+          compact ? "max-w-[90%] px-3 py-2" : "max-w-[80%] px-4 py-3",
           isUser
             ? "bg-sanctuary-accent text-white rounded-br-md"
             : "bg-sanctuary-card border border-sanctuary-border text-sanctuary-text rounded-bl-md",
           message.isStreaming && "animate-pulse"
         )}
       >
-        <div className="whitespace-pre-wrap break-words text-sm leading-relaxed">
+        <div className={cn(
+          "whitespace-pre-wrap break-words leading-relaxed",
+          compact ? "text-sm" : "text-sm"
+        )}>
           {message.content || (message.isStreaming && (
-            <span className="text-sanctuary-muted italic">Thinking...</span>
+            <span className="flex items-center gap-1.5 text-sanctuary-muted">
+              <span className="flex gap-0.5">
+                <span className="w-1.5 h-1.5 bg-current rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
+                <span className="w-1.5 h-1.5 bg-current rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
+                <span className="w-1.5 h-1.5 bg-current rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
+              </span>
+              <span className="italic">Thinking...</span>
+            </span>
           ))}
         </div>
 
@@ -38,30 +52,24 @@ export function MessageBubble({ message }: MessageBubbleProps) {
           <div className="mt-2 pt-2 border-t border-sanctuary-border/50">
             <button
               onClick={() => setSourcesExpanded(!sourcesExpanded)}
-              className="text-xs text-sanctuary-muted hover:text-sanctuary-text transition-colors flex items-center gap-1"
+              className="text-xs text-sanctuary-muted hover:text-sanctuary-text transition-colors flex items-center gap-1 cursor-pointer"
             >
-              <span className={cn(
-                "transition-transform",
-                sourcesExpanded && "rotate-90"
-              )}>
-                ▶
-              </span>
-              Sources ({message.sources!.length})
+              <CaretRight
+                className={cn(
+                  "h-3 w-3 transition-transform duration-150",
+                  sourcesExpanded && "rotate-90"
+                )}
+              />
+              <span>From your journal ({message.sources!.length})</span>
             </button>
             {sourcesExpanded && (
-              <ul className="mt-1 space-y-1">
-                {message.sources!.map((source) => (
-                  <li
-                    key={source.entry_id}
-                    className="text-xs text-sanctuary-muted pl-3 border-l border-sanctuary-border"
-                  >
-                    <span className="font-medium">
-                      {new Date(source.date).toLocaleDateString()}
-                    </span>
-                    : {source.snippet}
-                  </li>
-                ))}
-              </ul>
+              <div className="mt-2">
+                <SourceCardList
+                  sources={message.sources!}
+                  compact={compact}
+                  maxVisible={3}
+                />
+              </div>
             )}
           </div>
         )}

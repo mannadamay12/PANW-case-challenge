@@ -1,308 +1,562 @@
-# **MindScribe Technical Documentation**
+# MindScribe Technical Documentation
 
-## **01\. System Architecture**
+## 01. System Architecture
 
-### **1.1 Application Overview**
+### 1.1 Application Overview
 
 MindScribe is a **Local-First** AI journaling application designed to run entirely on the user's device (Edge AI). It eliminates the privacy risks associated with cloud-based mental health tools by executing the entire Machine Learning (ML) pipeline—inference, embedding generation, and vector retrieval—locally. The system acts as an empathetic companion, utilizing Small Language Models (SLMs) for dialogue and Retrieval-Augmented Generation (RAG) for long-term memory.
 
-### **1.2 Technology Stack**
+### 1.2 Technology Stack
 
 | Layer | Component | Technology | Description |
-| :---- | :---- | :---- | :---- |
-| **Frontend** | UI/UX | **React, TypeScript** | Built within the Tauri WebView (WebView2 on Windows, WebKit on macOS). |
-| **Backend** | Orchestration | **Rust** | Handles file I/O, database management, and process lifecycle (sidecars) with high memory efficiency. |
-| **ML Engine** | Inference | **Ollama / llama.cpp** | Bundled as a "Sidecar" binary to run SLMs (Gemma 2, Phi-3.5) via a local HTTP server. |
-| **ML Engine** | Embeddings | **Candle** | Hugging Face's Rust-native ML framework for running embedding models and sentiment analysis in-process. |
-| **Database** | Storage | **SQLite \+ sqlite-vec** | Single-file relational database with a vector search extension for RAG, residing locally. |
-| **Infra** | Runtime | **Tauri v2** | Lightweight application shell that bridges the web frontend with the Rust backend. |
+|-------|-----------|------------|-------------|
+| **Frontend** | UI/UX | React 19, TypeScript | Built within the Tauri WebView (WebView2 on Windows, WebKit on macOS) |
+| **Frontend** | State | TanStack Query, Zustand | Server state + client state separation |
+| **Backend** | Orchestration | Rust | Handles file I/O, database management, and ML coordination |
+| **ML Engine** | Inference | Ollama | Local LLM server running Gemma 3 4B |
+| **ML Engine** | Embeddings | Candle | Rust-native ML for all-MiniLM-L6-v2 embeddings |
+| **ML Engine** | Sentiment | Candle | DistilBERT GoEmotions classifier (28 emotions) |
+| **Database** | Storage | SQLite + sqlite-vec | Single-file database with vector search extension |
+| **Infra** | Runtime | Tauri v2 | Lightweight application shell bridging web frontend with Rust backend |
 
-### **1.3 High-Level Architecture Diagram**
+### 1.3 High-Level Architecture
 
-The following diagram illustrates the separation of concerns between the UI, the Rust Core, and the AI Sidecars.
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                         Tauri Shell                              │
+├─────────────────────────────────────────────────────────────────┤
+│  ┌─────────────────────┐    ┌─────────────────────────────────┐ │
+│  │   React Frontend    │    │        Rust Backend             │ │
+│  │  ┌───────────────┐  │    │  ┌─────────────────────────┐    │ │
+│  │  │ TanStack Query│◄─┼────┼──│   Tauri Commands        │    │ │
+│  │  └───────────────┘  │    │  └─────────────────────────┘    │ │
+│  │  ┌───────────────┐  │    │  ┌─────────────────────────┐    │ │
+│  │  │   Zustand     │  │    │  │   SQLite + sqlite-vec   │    │ │
+│  │  └───────────────┘  │    │  └─────────────────────────┘    │ │
+│  │  ┌───────────────┐  │    │  ┌─────────────────────────┐    │ │
+│  │  │   Components  │  │    │  │   Candle ML Models      │    │ │
+│  │  └───────────────┘  │    │  └─────────────────────────┘    │ │
+│  └─────────────────────┘    └─────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────────────┘
+                                      │
+                                      ▼
+                            ┌─────────────────┐
+                            │  Ollama Server  │
+                            │  (localhost)    │
+                            └─────────────────┘
+```
 
-## **02\. Database Schema**
+---
 
-The database utilizes **SQLite** extended with **sqlite-vec**. All data is stored in a single .db file protected by SQLCipher encryption.
+## 02. Database Schema
 
-### **2.1 Core Tables**
+The database utilizes **SQLite** extended with **sqlite-vec** for vector similarity search. All data is stored in a single `.db` file in the user's app data directory.
 
-#### **Table: journals**
+### 2.1 Core Tables
 
-Stores the raw text of user entries.
+#### Table: journals
 
-SQL
+Primary storage for journal entries.
 
-CREATE TABLE journals (  
-    id TEXT PRIMARY KEY,           \-- UUID  
-    content TEXT NOT NULL,         \-- The encrypted journal entry text  
-    created\_at TIMESTAMP DEFAULT CURRENT\_TIMESTAMP,  
-    updated\_at TIMESTAMP DEFAULT CURRENT\_TIMESTAMP,  
-    is\_archived BOOLEAN DEFAULT 0  
+```sql
+CREATE TABLE journals (
+    id TEXT PRIMARY KEY,              -- UUID v4
+    content TEXT NOT NULL,            -- Journal entry text (markdown)
+    title TEXT,                       -- Auto-generated or user title
+    entry_type TEXT DEFAULT 'reflection',  -- 'reflection', 'gratitude', etc.
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    is_archived BOOLEAN DEFAULT 0
 );
 
-#### **Table: journal\_emotions**
+CREATE INDEX idx_journals_archived ON journals(is_archived);
+CREATE INDEX idx_journals_created ON journals(created_at DESC);
+```
 
-Stores the output of the DistilBERT sentiment analysis classification.
+#### Table: journal_emotions
 
-SQL
+Stores sentiment analysis results (GoEmotions taxonomy).
 
-CREATE TABLE journal\_emotions (  
-    id INTEGER PRIMARY KEY AUTOINCREMENT,  
-    journal\_id TEXT,  
-    emotion\_label TEXT,            \-- e.g., 'Anxiety', 'Joy' (from GoEmotions taxonomy)  
-    confidence\_score REAL,         \-- Probability (0.0 \- 1.0)  
-    FOREIGN KEY(journal\_id) REFERENCES journals(id) ON DELETE CASCADE  
+```sql
+CREATE TABLE journal_emotions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    journal_id TEXT NOT NULL,
+    emotion_label TEXT NOT NULL,      -- e.g., 'joy', 'anxiety', 'gratitude'
+    confidence_score REAL NOT NULL,   -- Probability (0.0 - 1.0)
+    FOREIGN KEY(journal_id) REFERENCES journals(id) ON DELETE CASCADE
 );
 
-#### **Virtual Table: vec\_entries**
+CREATE INDEX idx_journal_emotions_journal_id ON journal_emotions(journal_id);
+```
 
-Used by sqlite-vec for semantic search.
+#### Table: chat_messages
 
-SQL
+Per-entry conversation history with AI companion.
 
-CREATE VIRTUAL TABLE vec\_entries USING vec0(  
-    journal\_id TEXT,  
-    embedding float\[384\]           \-- 384-dim vector from all-MiniLM-L6-v2  
+```sql
+CREATE TABLE chat_messages (
+    id TEXT PRIMARY KEY,              -- UUID v4
+    journal_id TEXT NOT NULL,         -- Links to journals.id
+    role TEXT NOT NULL,               -- 'user' or 'assistant'
+    content TEXT NOT NULL,            -- Message text
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    metadata TEXT,                    -- Optional JSON metadata
+    FOREIGN KEY(journal_id) REFERENCES journals(id) ON DELETE CASCADE
 );
 
-### **2.2 Relationships Summary**
+CREATE INDEX idx_chat_messages_journal ON chat_messages(journal_id);
+CREATE INDEX idx_chat_messages_created ON chat_messages(created_at);
+```
+
+#### Table: journal_templates
+
+Pre-built journaling prompts and templates.
+
+```sql
+CREATE TABLE journal_templates (
+    id TEXT PRIMARY KEY,              -- UUID v4
+    title TEXT NOT NULL,              -- Template name
+    prompt TEXT NOT NULL,             -- Guiding question
+    template_text TEXT NOT NULL,      -- Starting text for entry
+    icon TEXT,                        -- Icon identifier
+    category TEXT NOT NULL DEFAULT 'reflection',  -- 'growth', 'mindfulness', etc.
+    is_default BOOLEAN DEFAULT 0,     -- System-provided template
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_templates_is_default ON journal_templates(is_default);
+CREATE INDEX idx_templates_category ON journal_templates(category);
+```
+
+#### Table: entry_images
+
+Inline image attachments for journal entries.
+
+```sql
+CREATE TABLE entry_images (
+    id TEXT PRIMARY KEY,              -- UUID v4
+    entry_id TEXT NOT NULL,           -- Links to journals.id
+    filename TEXT NOT NULL,           -- Original filename
+    relative_path TEXT NOT NULL,      -- Path relative to app data dir
+    mime_type TEXT,                   -- e.g., 'image/png'
+    file_size INTEGER,                -- Bytes
+    width INTEGER,                    -- Pixels
+    height INTEGER,                   -- Pixels
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(entry_id) REFERENCES journals(id) ON DELETE CASCADE
+);
+
+CREATE INDEX idx_entry_images_entry_id ON entry_images(entry_id);
+```
+
+### 2.2 Virtual Tables
+
+#### journals_fts (Full-Text Search)
+
+FTS5 index synchronized via triggers.
+
+```sql
+CREATE VIRTUAL TABLE journals_fts USING fts5(
+    content,
+    content='journals',
+    content_rowid='rowid'
+);
+
+-- Triggers: journals_ai (after insert), journals_au (after update), journals_ad (after delete)
+```
+
+#### journal_embeddings (Vector Search)
+
+384-dimensional embeddings from all-MiniLM-L6-v2.
+
+```sql
+CREATE VIRTUAL TABLE journal_embeddings USING vec0(
+    journal_id TEXT PRIMARY KEY,
+    embedding FLOAT[384]
+);
+```
+
+#### chunk_embeddings (Chunk-Level Vectors)
+
+For better RAG on long entries.
+
+```sql
+CREATE VIRTUAL TABLE chunk_embeddings USING vec0(
+    chunk_id TEXT PRIMARY KEY,
+    embedding FLOAT[384]
+);
+```
+
+### 2.3 Supporting Tables
+
+```sql
+-- Embedding version tracking
+CREATE TABLE embedding_metadata (
+    journal_id TEXT PRIMARY KEY,
+    model_version TEXT NOT NULL,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (journal_id) REFERENCES journals(id) ON DELETE CASCADE
+);
+
+-- Text chunks for long entries
+CREATE TABLE embedding_chunks (
+    id TEXT PRIMARY KEY,
+    journal_id TEXT NOT NULL,
+    chunk_index INTEGER NOT NULL,
+    chunk_text TEXT NOT NULL,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (journal_id) REFERENCES journals(id) ON DELETE CASCADE
+);
+```
+
+### 2.4 Relationships Summary
+
+| Relationship | Description |
+|--------------|-------------|
+| journals → journal_emotions | 1:N - Entry has multiple emotions |
+| journals → journal_embeddings | 1:1 - Entry has one embedding |
+| journals → chat_messages | 1:N - Entry has conversation history |
+| journals → entry_images | 1:N - Entry has multiple images |
+| journals → embedding_chunks | 1:N - Long entries split into chunks |
+
+---
+
+## 03. API Specifications
+
+MindScribe uses **Tauri IPC** (Inter-Process Communication) for frontend-backend communication. All commands are invoked via `window.__TAURI__.invoke('{command_name}', params)`.
+
+### 3.1 Journal Commands
+
+| Command | Input | Output | Description |
+|---------|-------|--------|-------------|
+| `create_entry` | `{ content, title?, entry_type? }` | `{ id }` | Create new journal entry |
+| `get_entry` | `{ id }` | `Journal` | Retrieve single entry |
+| `list_entries` | `{ limit?, offset?, archived? }` | `Journal[]` | Paginated entry list |
+| `update_entry` | `{ id, content?, title?, entry_type? }` | `Journal` | Update entry fields |
+| `delete_entry` | `{ id }` | `{ success }` | Permanently delete entry |
+| `archive_entry` | `{ id }` | `Journal` | Soft-delete (archive) |
+| `unarchive_entry` | `{ id }` | `Journal` | Restore from archive |
+| `search_entries` | `{ query, include_archived? }` | `Journal[]` | FTS5 keyword search |
+
+### 3.2 Dashboard Commands
+
+| Command | Input | Output | Description |
+|---------|-------|--------|-------------|
+| `get_journal_stats` | - | `JournalStats` | Total entries, streak, week/month counts |
+| `get_streak_info` | - | `StreakInfo` | Current/longest streak, week entry dates |
+| `get_emotion_trends` | `{ start_date, end_date }` | `DayEmotions[]` | Daily emotion summaries |
+| `get_on_this_day` | - | `Journal[]` | Entries from same date in prior years |
+
+### 3.3 Template Commands
+
+| Command | Input | Output | Description |
+|---------|-------|--------|-------------|
+| `create_template` | `{ title, prompt, template_text, icon?, category }` | `Template` | Create custom template |
+| `get_template` | `{ id }` | `Template` | Get single template |
+| `list_templates` | - | `Template[]` | All templates |
+| `list_templates_by_category` | `{ category }` | `Template[]` | Filter by category |
+| `update_template` | `{ id, title?, prompt?, template_text?, icon?, category? }` | `Template` | Update template |
+| `delete_template` | `{ id }` | `{ success }` | Delete template |
+
+### 3.4 Image Commands
+
+| Command | Input | Output | Description |
+|---------|-------|--------|-------------|
+| `upload_entry_image` | `{ entry_id, filename, data (base64) }` | `EntryImage` | Upload image for entry |
+| `get_entry_images` | `{ entry_id }` | `EntryImage[]` | List images for entry |
+| `delete_entry_image` | `{ id }` | `{ success }` | Delete image file and record |
+| `get_image_data` | `{ relative_path }` | `string (base64)` | Retrieve image data |
+
+### 3.5 Chat Commands
+
+| Command | Input | Output | Description |
+|---------|-------|--------|-------------|
+| `list_entry_messages` | `{ journal_id }` | `ChatMessage[]` | Get conversation for entry |
+| `create_chat_message` | `{ journal_id, role, content }` | `ChatMessage` | Add message to conversation |
+| `delete_entry_messages` | `{ journal_id }` | `usize` | Clear conversation |
+| `chat_stream` | `{ message, history?, journal_id? }` | (events) | Stream chat response |
+| `check_message_safety` | `{ text }` | `SafetyResult` | Check for crisis/distress |
+
+**Chat Stream Events:**
+- `chat-chunk` - Token received: `{ content: string }`
+- `chat-done` - Generation complete: `{ full_response: string }`
+- `chat-error` - Error occurred: `{ error: string }`
+
+### 3.6 ML Commands
+
+| Command | Input | Output | Description |
+|---------|-------|--------|-------------|
+| `get_model_status` | - | `ModelStatus` | Check if ML models loaded |
+| `initialize_models` | - | `()` | Load embedding + sentiment models |
+| `get_entry_emotions` | `{ id }` | `EmotionPrediction[]` | Get emotions for entry |
+| `hybrid_search` | `{ query, limit?, include_archived? }` | `HybridSearchResult[]` | Semantic + keyword search |
+| `generate_entry_embedding` | `{ id }` | `()` | Generate embedding for entry |
+
+### 3.7 LLM Commands
+
+| Command | Input | Output | Description |
+|---------|-------|--------|-------------|
+| `check_ollama_status` | - | `OllamaStatus` | Check Ollama running + model available |
+| `generate_title` | `{ content }` | `string` | Generate title for entry |
+| `generate_missing_titles` | - | `usize` | Batch generate titles |
+| `generate_summary` | `{ start_date, end_date }` | `string` | Generate period summary |
+
+### 3.8 Error Responses
+
+| Code | Message | Cause |
+|------|---------|-------|
+| `MODEL_OFFLINE` | "The AI sidecar is initializing" | ML models not loaded |
+| `SAFETY_INTERVENTION` | "Safety check triggered" | Crisis/distress detected |
+| `NOT_FOUND` | "Entry not found" | Invalid entry ID |
+| `DATABASE_ERROR` | "Database operation failed" | SQLite error |
+
+---
+
+## 04. Data Types
+
+### Journal
+
+```typescript
+interface Journal {
+  id: string;
+  content: string;
+  title: string | null;
+  entry_type: string;
+  created_at: string;  // ISO 8601
+  updated_at: string;  // ISO 8601
+  is_archived: boolean;
+}
+```
+
+### JournalStats
+
+```typescript
+interface JournalStats {
+  total_entries: number;
+  current_streak: number;
+  entries_this_week: number;
+  entries_this_month: number;
+}
+```
+
+### StreakInfo
+
+```typescript
+interface StreakInfo {
+  current_streak: number;
+  longest_streak: number;
+  last_entry_date: string | null;
+  week_entry_dates: string[];
+}
+```
+
+### EmotionPrediction
+
+```typescript
+interface EmotionPrediction {
+  label: string;      // e.g., "joy", "anxiety"
+  confidence: number; // 0.0 - 1.0
+}
+```
 
-* **1:N (One-to-Many):** journals.id ↔ journal\_emotions.journal\_id. A single journal entry may contain multiple dominant emotions (e.g., *Fear* and *Sadness*).  
-* **1:1 (One-to-One):** journals.id ↔ vec\_entries.journal\_id. Every text chunk in the journal table corresponds to a vector embedding in the virtual table for RAG retrieval.
+### ChatMessage
 
-## ---
+```typescript
+interface ChatMessage {
+  id: string;
+  journal_id: string;
+  role: "user" | "assistant";
+  content: string;
+  created_at: string;
+  metadata: string | null;
+}
+```
 
-**03\. API Specifications**
+### SafetyResult
 
-Since MindScribe is a local app, "APIs" refer to the **Internal IPC (Inter-Process Communication)** exposed by the Rust backend to the React frontend, and the **Local Inference API** provided by the sidecar.
+```typescript
+interface SafetyResult {
+  level: "safe" | "distress" | "crisis";
+  message: string | null;
+}
+```
+
+### OllamaStatus
 
-### **3.1 Authentication**
+```typescript
+interface OllamaStatus {
+  is_running: boolean;
+  model_available: boolean;
+}
+```
 
-* **Mechanism:** No network authentication. Access is controlled via **Local Encryption Key** derivation (User Password \-\> Key) to unlock the SQLCipher database at runtime.
+---
 
-### **3.2 Base URL**
+## 05. Integration Requirements
 
-* **Inference API:** http://127.0.0.1:{dynamic\_port}/v1 (Port is dynamically assigned by Rust at startup to avoid conflicts).  
-* **IPC:** window.\_\_TAURI\_\_.invoke('{command\_name}')
+### 5.1 Ollama (External)
 
-### **3.3 Core Endpoints (Tauri Commands)**
+MindScribe requires Ollama for LLM features (chat, title generation, summaries).
 
-**Command: create\_entry**
+- **Default URL:** `http://127.0.0.1:11434`
+- **Required Model:** `gemma3:4b`
+- **Installation:** User manages via `ollama pull gemma3:4b`
+- **Status Detection:** App checks `/api/tags` endpoint on launch
 
-* **Input:** { content: string }  
-* **Process:**  
-  1. Save text to journals.  
-  2. Run in-process Candle inference for sentiment \-\> Save to journal\_emotions.  
-  3. Run in-process Candle embedding \-\> Save to vec\_entries.  
-* **Output:** { status: "success", id: "uuid" }
+### 5.2 HuggingFace (Model Downloads)
 
-**Command: chat\_stream**
+ML models are downloaded from HuggingFace on first use:
 
-* **Input:** { message: string, history: Message\[\] }  
-* **Process:**  
-  1. Perform Hybrid Search (FTS5 \+ Vector) on journals.  
-  2. Construct System Prompt with retrieved context.  
-  3. Forward request to Local Inference API (/v1/chat/completions).  
-* **Output:** Stream\<String\> (Token stream).
+| Model | Purpose | Size |
+|-------|---------|------|
+| `sentence-transformers/all-MiniLM-L6-v2` | Embeddings | ~90MB |
+| `joeddav/distilbert-base-uncased-go-emotions-student` | Sentiment | ~268MB |
 
-### **3.4 Error Responses**
+Models are cached in the app data directory.
 
-* **Model Not Loaded:** { "code": "MODEL\_OFFLINE", "message": "The AI sidecar is initializing. Please wait." }  
-* **Safety Violation:** { "code": "SAFETY\_INTERVENTION", "message": "Self-harm detected. Providing resources." }.
+---
 
-### **3.5 Rate Limiting**
+## 06. Data Synchronization
 
-* **Concept:** Not applicable via network.  
-* **Throttling:** The Rust backend implements a **Mutex Lock** on the inference endpoint to prevent parallel requests from crashing the SLM due to VRAM exhaustion.
+### 6.1 Offline Support (Default)
 
-## ---
+MindScribe is local-first. "Offline Mode" is the default state.
 
-**04\. Integration Requirements**
+- **No Cloud Sync:** User data never transmitted to servers
+- **Backup:** Users can manually export database file
 
-* **Sidecar (Internal):** The llama-server binary must be bundled inside the application installer. The tauri.conf.json must map this binary to the externalBin configuration.  
-* **Hugging Face (External):** Used **only** for downloading model weights (.gguf) during the initial setup wizard.  
-  * *Endpoint:* https://huggingface.co/api/models  
-  * *Policy:* User must explicitly approve the download.
+### 6.2 Internal Sync
 
-## ---
+- **FTS Index:** Automatically maintained via SQLite triggers
+- **Embeddings:** Generated after entry save (async)
+- **Emotions:** Analyzed after entry save (async)
 
-**05\. Data Synchronization**
+---
 
-MindScribe follows a **"Local-Only"** policy. However, internal state synchronization is critical.
+## 07. Security and Compliance
 
-### **5.1 Offline Support (Architecture Default)**
+### 7.1 Data Protection
 
-Since the app is local-first, "Offline Mode" is the default state.
+| Aspect | Implementation |
+|--------|----------------|
+| **At Rest** | SQLCipher encryption available (opt-in) |
+| **In Transit** | N/A - no data leaves localhost |
+| **Network Isolation** | Tauri allowlist restricts HTTP requests |
 
-* **No Cloud Sync:** User data is never transmitted to a cloud server.  
-* **Backup Sync:** Users can manually export an encrypted backup file (mindscribe\_backup.enc).
+### 7.2 Privacy Guarantees
 
-### **5.2 Background Sync (Internal)**
+- User content never written to logs
+- No telemetry or analytics
+- Model inference entirely local
+- Network access limited to model downloads
 
-* **Vector Re-indexing:** If the embedding model is updated, a background task in Rust re-processes all journals entries to update vec\_entries.  
-* **Model Updates:** The app checks for model updates (e.g., Gemma 2 v1.1) on launch.  
-  * *Frequency:* Weekly check (requires user opt-in).  
-  * *Action:* Notification badge on "Settings" if a better optimized GGUF is available.
+### 7.3 GDPR Compliance
 
-## ---
+- **Data Sovereignty:** User is both Data Controller and Processor
+- **Right to Erasure:** "Delete All Data" feature removes database
 
-**06\. Security and Compliance**
+---
 
-### **6.1 Authentication and Authorization**
+## 08. Performance Requirements
 
-* **App Lock:** Optional PIN/Biometric lock (via OS native APIs) required to open the app window.  
-* **Network Isolation:** tauri.conf.json Allowlist restricts HTTP traffic strictly to update servers. All other domains are blocked.
+### 8.1 Response Time Targets
 
-### **6.2 Data Encryption**
+| Operation | Target |
+|-----------|--------|
+| Entry Save | < 100ms |
+| FTS Search | < 50ms |
+| Hybrid Search | < 200ms |
+| Sentiment Analysis | < 50ms per sentence |
+| Chat TTFT (Time to First Token) | < 1.5s |
+| Chat Generation | > 20 tokens/second |
 
-* **At Rest:** The SQLite database is encrypted using **SQLCipher**. The key is derived from the user's master password using Argon2id.  
-* **In Transit:** Not applicable (no data leaves localhost).
+### 8.2 Resource Limits
 
-### **6.3 GDPR Compliance**
+| Resource | Limit |
+|----------|-------|
+| SQLite Database | < 1GB typical |
+| Vector Store | ~100,000 entries before degradation |
+| Model Memory | ~400MB for ML models |
+| Ollama Memory | ~3GB for Gemma 3 4B |
 
-* **Data Sovereignty:** Fully compliant by design. The user is the Data Controller and Data Processor.  
-* **Right to be Forgotten:** A "Nuke Data" feature permanently deletes the .db file and associated model weights.
+---
 
-### **6.4 PCI Compliance**
+## 09. Testing Requirements
 
-* **Status:** Not Applicable. MindScribe does not process payments.
+### 9.1 Unit Tests (Rust)
 
-## ---
+**Coverage Target:** 80% on critical paths
 
-**07\. Performance Requirements**
+| Module | Tests |
+|--------|-------|
+| `db::journals` | CRUD, search, archive, date queries |
+| `db::vectors` | Store, retrieve, similarity search |
+| `db::search` | RRF calculation, hybrid search |
+| `llm::safety` | Crisis/distress detection |
+| `db::chat` | Message CRUD, cascade delete |
 
-### **7.1 Response Time Targets**
+### 9.2 Type Checking (TypeScript)
 
-* **Chat Latency (TTFT \- Time To First Token):** \< 800ms on M1/M2/M3 chips; \< 1.5s on generic Intel/AMD CPUs.  
-* **Generation Speed:** Minimum 20 tokens/second to maintain conversational flow.  
-* **Sentiment Analysis:** \< 50ms per sentence (running on CPU via ort or candle).
+- Strict mode enabled
+- Run via `pnpm lint`
 
-### **7.2 Scalability Targets (Local)**
+### 9.3 Build Verification
 
-* **Context Window:** Up to 8k tokens for Gemma 2 (Chat) and 128k tokens for Phi-3.5 (Analysis).  
-* **Vector Store:** Optimized for up to 100,000 journal entries (approx. 10 years of daily journaling) using exact KNN search before performance degrades.
+```bash
+cargo fmt --check      # Rust formatting
+cargo clippy           # Rust lints (0 warnings)
+cargo test             # Unit tests
+pnpm build             # TypeScript compilation
+pnpm tauri build       # Full app bundle
+```
 
-### **7.3 Database Optimization**
+---
 
-* **WAL Mode:** SQLite Write-Ahead Logging enabled for concurrent read/write.  
-* **Virtual Table:** sqlite-vec runs in memory-mapped mode where possible for speed.
+## 10. Deployment
 
-## ---
+### 10.1 Build Targets
 
-**08\. Monitoring and Logging**
+| Platform | Output |
+|----------|--------|
+| macOS | `.app` bundle, `.dmg` installer |
+| Windows | `.msi` installer |
+| Linux | `.deb`, `.AppImage` |
 
-### **8.1 Application Monitoring**
+### 10.2 Database Location
 
-* **Tools:** Rust log crate \+ Custom Panic Hook.  
-* **Key Metrics (Internal Dashboard):**  
-  * *Inference Speed (tokens/sec).*  
-  * *RAM Usage (Sidecar).*  
-  * *Storage consumed by DB.*
+| Platform | Path |
+|----------|------|
+| macOS | `~/Library/Application Support/com.mindscribe.app/mindscribe.db` |
+| Windows | `%APPDATA%/com.mindscribe.app/mindscribe.db` |
+| Linux | `~/.local/share/com.mindscribe.app/mindscribe.db` |
 
-### **8.2 Logging Standards**
+### 10.3 Model Storage
 
-* **Log Levels:**  
-  * INFO: App lifecycle events (Start, Stop, Update).  
-  * ERROR: Sidecar crashes, DB corruption.  
-* **Sensitive Data Masking:** **STRICT.** User input (journal text) and Model output MUST NEVER be written to application logs. Logs should only record metadata (e.g., "Entry created", "Inference failed").  
-* **Format:** JSON structured logging for easy debugging.
+ML models stored in:
+- macOS: `~/Library/Application Support/com.mindscribe.app/models/`
+- Windows: `%APPDATA%/com.mindscribe.app/models/`
 
-## ---
+---
 
-**09\. Testing Requirements**
+## 11. Appendix
 
-### **9.1 Unit Testing**
+### A. GoEmotions Labels (28)
 
-* **Target Coverage:** 80% on Rust Backend.  
-* **Critical Components:**  
-  * DatabaseManager: Ensure encryption/decryption works reliably.  
-  * SidecarController: Ensure process spawning/killing handles zombie processes correctly.  
-  * SentimentParser: Validate DistilBERT output mapping.
+admiration, amusement, anger, annoyance, approval, caring, confusion, curiosity, desire, disappointment, disapproval, disgust, embarrassment, excitement, fear, gratitude, grief, joy, love, nervousness, optimism, pride, realization, relief, remorse, sadness, surprise, neutral
 
-### **9.2 Integration Testing**
+### B. Entry Types
 
-* **Scenarios:**  
-  * Start app \-\> Check Sidecar health \-\> Load Model \-\> Send "Hello" \-\> Receive Response.  
-  * Create Entry \-\> Verify Vector created in vec\_entries \-\> Verify Emotion in journal\_emotions.
+- `reflection` (default)
+- `gratitude`
+- `growth`
+- `mindfulness`
+- `morning`
 
-### **9.3 E2E Testing**
+### C. Template Categories
 
-* **Tool:** Playwright (for Tauri).  
-* **User Journeys:**  
-  * Onboarding Wizard (Model Download).  
-  * Daily Journaling flow.  
-  * "Emergency" trigger flow (typing trigger words).
-
-### **9.4 Performance Testing**
-
-* **Stress Test:** Rapidly sending 50 messages to the inference engine to ensure the queue system prevents crash.
-
-## ---
-
-**10\. Deployment & CI/CD**
-
-### **10.1 Deployment Strategy**
-
-* **Environment:** GitHub Actions (Matrix build: macOS, Windows, Linux).  
-* **Artifacts:** .dmg (macOS), .msi (Windows), .deb (Linux).  
-* **Sidecar Handling:** CI script downloads the llama-server binary and places it in the src-tauri/bin directory before compilation.
-
-### **10.2 DB Migrations**
-
-* **Tool:** sqlx-cli or rusqlite embedded migrations.  
-* **Process:** Applied automatically on app startup.  
-* **Rollback:** Automatic database backup created (db.bak) before applying any migration.
-
-### **10.3 Feature Flags**
-
-* **System:** Local configuration file (flags.json), not remote.  
-* **Key Flags:**  
-  * enable\_experimental\_models: Allows users to swap Gemma 2 for experimental GGUFs.  
-  * verbose\_logging: Developer mode.
-
-## ---
-
-**11\. Edge Cases and Error Handling**
-
-| Scenario | Problem | Solution |
-| :---- | :---- | :---- |
-| **Model Crash** | The llama-server process dies (OOM or bug). | Rust Child monitor detects exit code. Backend automatically restarts the process and informs frontend to "Retrying...". |
-| **Safety Trigger** | User expresses self-harm intent. | Regex/Sentiment filter intercepts request *before* LLM. Hard-coded modal displays help resources. LLM is NOT queried. |
-| **First Run Offline** | User installs app but has no internet for model download. | App enters "Lite Mode" (Journaling only, no AI). Persists a banner: "Connect to internet to enable AI features." |
-| **Database Corruption** | SQLite file unreadable. | App attempts to restore from the last automatic .bak. If fails, prompts user to "Reset Database." |
-
-## ---
-
-**12\. Future Considerations**
-
-### **12.1 Planned Features (Not in MVP)**
-
-* **Voice Journaling:** Integration with Whisper.cpp (also running locally) for speech-to-text.  
-* **Mobile Companion:** A simplified mobile app that syncs *locally* via peer-to-peer Wi-Fi (no cloud) to the desktop app.
-
-### **12.2 Scalability Roadmap**
-
-* **NPU Support:** Official support for Neural Processing Units (NPUs) in newer Intel/AMD chips to reduce battery drain.  
-* **LoRA Adapters:** Allow users to "fine-tune" the style of their companion by training a small LoRA adapter locally on their past journals.
-
-## ---
-
-**APPENDIX**
-
-### **A. Glossary**
-
-* **RAG (Retrieval-Augmented Generation):** The technique of fetching user data to give the AI context.  
-* **Sidecar:** A secondary process (the AI engine) managed by the main application.  
-* **GGUF:** The file format used for quantized (compressed) AI models.  
-* **Quantization:** Reducing the precision of model weights (e.g., 4-bit) to save RAM.
-
-### **B. External Dependencies**
-
-* llama-server (v0.1.x)  
-* sqlite-vec (v0.1.0)  
-* distilbert-base-uncased-go-emotions-student (ONNX/Candle)
-
-### **C. API Versioning Strategy**
-
-* Internal IPC commands are versioned by the application release (Semantic Versioning). Breaking changes in the Rust backend require a mandatory frontend update (handled by the single-binary distribution model).
+- `reflection`
+- `gratitude`
+- `growth`
+- `mindfulness`
+- `morning`
