@@ -1,0 +1,137 @@
+import { PanelLeftClose, PanelLeft, Plus, Archive } from "lucide-react";
+import { useUIStore } from "../../stores/ui-store";
+import { useDeleteEntry } from "../../hooks/use-journal";
+import { Button } from "../ui/Button";
+import { ConfirmDialog } from "../ui/ConfirmDialog";
+import { SearchBar } from "../journal/SearchBar";
+import { EntryList } from "../journal/EntryList";
+import { Editor } from "../journal/Editor";
+import { cn } from "../../lib/utils";
+
+export function AppShell() {
+  const {
+    isSidebarOpen,
+    toggleSidebar,
+    isEditorOpen,
+    openEditor,
+    closeEditor,
+    showArchived,
+    toggleShowArchived,
+    deleteConfirmId,
+    setDeleteConfirmId,
+    setSelectedEntryId,
+  } = useUIStore();
+
+  const deleteMutation = useDeleteEntry();
+
+  const handleNewEntry = () => {
+    openEditor();
+  };
+
+  const handleConfirmDelete = () => {
+    if (deleteConfirmId) {
+      deleteMutation.mutate(deleteConfirmId, {
+        onSuccess: () => {
+          setDeleteConfirmId(null);
+          setSelectedEntryId(null);
+          closeEditor();
+        },
+      });
+    }
+  };
+
+  return (
+    <div className="h-screen flex bg-sanctuary-bg">
+      {/* Sidebar */}
+      <aside
+        className={cn(
+          "flex flex-col border-r border-sanctuary-border bg-sanctuary-bg transition-all duration-300",
+          isSidebarOpen ? "w-80" : "w-0 overflow-hidden"
+        )}
+      >
+        {/* Sidebar header */}
+        <div className="flex items-center justify-between p-4 border-b border-sanctuary-border">
+          <h1 className="text-lg font-semibold text-sanctuary-text">
+            MindScribe
+          </h1>
+          <Button variant="ghost" size="icon" onClick={toggleSidebar}>
+            <PanelLeftClose className="h-5 w-5" />
+          </Button>
+        </div>
+
+        {/* New entry button */}
+        <div className="p-4">
+          <Button onClick={handleNewEntry} className="w-full">
+            <Plus className="h-4 w-4 mr-2" />
+            New Entry
+          </Button>
+        </div>
+
+        {/* Search */}
+        <div className="px-4 pb-2">
+          <SearchBar />
+        </div>
+
+        {/* Filters */}
+        <div className="px-4 pb-4">
+          <label className="flex items-center gap-2 text-sm text-sanctuary-muted cursor-pointer hover:text-sanctuary-text transition-colors">
+            <input
+              type="checkbox"
+              checked={showArchived}
+              onChange={toggleShowArchived}
+              className="rounded border-sanctuary-border text-sanctuary-accent focus:ring-sanctuary-accent"
+            />
+            <Archive className="h-4 w-4" />
+            Show archived
+          </label>
+        </div>
+
+        {/* Entry list */}
+        <div className="flex-1 overflow-y-auto">
+          <EntryList />
+        </div>
+      </aside>
+
+      {/* Main content */}
+      <main className="flex-1 flex flex-col min-w-0">
+        {/* Collapsed sidebar toggle */}
+        {!isSidebarOpen && (
+          <div className="p-2 border-b border-sanctuary-border">
+            <Button variant="ghost" size="icon" onClick={toggleSidebar}>
+              <PanelLeft className="h-5 w-5" />
+            </Button>
+          </div>
+        )}
+
+        {/* Content area */}
+        {isEditorOpen ? (
+          <Editor />
+        ) : (
+          <div className="flex-1 flex items-center justify-center">
+            <div className="text-center">
+              <p className="text-sanctuary-muted mb-4">
+                Select an entry or create a new one
+              </p>
+              <Button onClick={handleNewEntry}>
+                <Plus className="h-4 w-4 mr-2" />
+                New Entry
+              </Button>
+            </div>
+          </div>
+        )}
+      </main>
+
+      {/* Delete confirmation dialog */}
+      <ConfirmDialog
+        isOpen={deleteConfirmId !== null}
+        onClose={() => setDeleteConfirmId(null)}
+        onConfirm={handleConfirmDelete}
+        title="Delete Entry"
+        description="Are you sure you want to delete this entry? This action cannot be undone."
+        confirmText="Delete"
+        variant="danger"
+        isLoading={deleteMutation.isPending}
+      />
+    </div>
+  );
+}

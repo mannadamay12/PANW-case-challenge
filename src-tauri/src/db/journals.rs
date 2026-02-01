@@ -93,7 +93,7 @@ pub fn list(
     sql.push_str(" ORDER BY created_at DESC LIMIT ?1 OFFSET ?2");
 
     let mut stmt = conn.prepare(&sql)?;
-    let journals = stmt
+    let journals: Vec<Journal> = stmt
         .query_map(params![limit, offset], |row| {
             Ok(Journal {
                 id: row.get(0)?,
@@ -103,7 +103,10 @@ pub fn list(
                 is_archived: row.get(4)?,
             })
         })?
-        .filter_map(|r| r.ok())
+        .filter_map(|r| {
+            r.map_err(|e| log::warn!("Failed to parse journal row: {}", e))
+                .ok()
+        })
         .collect();
 
     Ok(journals)
@@ -174,7 +177,11 @@ pub fn archive(conn: &Connection, id: &str) -> Result<Journal, AppError> {
 }
 
 /// Search journal entries using FTS5.
-pub fn search(conn: &Connection, query: &str) -> Result<Vec<Journal>, AppError> {
+pub fn search(
+    conn: &Connection,
+    query: &str,
+    include_archived: bool,
+) -> Result<Vec<Journal>, AppError> {
     if query.trim().is_empty() {
         return Ok(vec![]);
     }
@@ -187,17 +194,28 @@ pub fn search(conn: &Connection, query: &str) -> Result<Vec<Journal>, AppError> 
         .collect::<Vec<_>>()
         .join(" ");
 
-    let sql = r#"
-        SELECT j.id, j.content, j.created_at, j.updated_at, j.is_archived
-        FROM journals j
-        JOIN journals_fts fts ON j.rowid = fts.rowid
-        WHERE journals_fts MATCH ?1
-        ORDER BY rank
-        LIMIT 50
-    "#;
+    let sql = if include_archived {
+        r#"
+            SELECT j.id, j.content, j.created_at, j.updated_at, j.is_archived
+            FROM journals j
+            JOIN journals_fts fts ON j.rowid = fts.rowid
+            WHERE journals_fts MATCH ?1
+            ORDER BY rank
+            LIMIT 50
+        "#
+    } else {
+        r#"
+            SELECT j.id, j.content, j.created_at, j.updated_at, j.is_archived
+            FROM journals j
+            JOIN journals_fts fts ON j.rowid = fts.rowid
+            WHERE journals_fts MATCH ?1 AND j.is_archived = 0
+            ORDER BY rank
+            LIMIT 50
+        "#
+    };
 
     let mut stmt = conn.prepare(sql)?;
-    let journals = stmt
+    let journals: Vec<Journal> = stmt
         .query_map(params![escaped_query], |row| {
             Ok(Journal {
                 id: row.get(0)?,
@@ -207,7 +225,10 @@ pub fn search(conn: &Connection, query: &str) -> Result<Vec<Journal>, AppError> 
                 is_archived: row.get(4)?,
             })
         })?
-        .filter_map(|r| r.ok())
+        .filter_map(|r| {
+            r.map_err(|e| log::warn!("Failed to parse journal row: {}", e))
+                .ok()
+        })
         .collect();
 
     Ok(journals)
@@ -217,7 +238,10 @@ pub fn search(conn: &Connection, query: &str) -> Result<Vec<Journal>, AppError> 
 fn parse_datetime(s: String) -> DateTime<Utc> {
     DateTime::parse_from_rfc3339(&s)
         .map(|dt| dt.with_timezone(&Utc))
-        .unwrap_or_else(|_| Utc::now())
+        .unwrap_or_else(|e| {
+            log::warn!("Failed to parse datetime '{}': {}", s, e);
+            Utc::now()
+        })
 }
 
 #[cfg(test)]
@@ -304,8 +328,26 @@ mod tests {
         create(&conn, "Feeling anxious about tomorrow").unwrap();
         create(&conn, "Good morning sunshine").unwrap();
 
-        let results = search(&conn, "good").unwrap();
+        let results = search(&conn, "good", false).unwrap();
         assert_eq!(results.len(), 2);
+    }
+
+    #[test]
+    fn test_search_excludes_archived() {
+        let conn = setup_test_db();
+
+        let entry1 = create(&conn, "Today was a good day").unwrap();
+        create(&conn, "Good morning sunshine").unwrap();
+        archive(&conn, &entry1.id).unwrap();
+
+        // Without archived
+        let results = search(&conn, "good", false).unwrap();
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].content, "Good morning sunshine");
+
+        // With archived
+        let results_with_archived = search(&conn, "good", true).unwrap();
+        assert_eq!(results_with_archived.len(), 2);
     }
 
     #[test]

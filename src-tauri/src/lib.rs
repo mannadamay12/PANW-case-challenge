@@ -67,9 +67,13 @@ fn archive_entry(pool: State<'_, DbPool>, id: String) -> Result<Journal, AppErro
 
 /// Search journal entries using full-text search.
 #[tauri::command]
-fn search_entries(pool: State<'_, DbPool>, query: String) -> Result<Vec<Journal>, AppError> {
+fn search_entries(
+    pool: State<'_, DbPool>,
+    query: String,
+    include_archived: Option<bool>,
+) -> Result<Vec<Journal>, AppError> {
     let conn = pool.get()?;
-    journals::search(&conn, &query)
+    journals::search(&conn, &query, include_archived.unwrap_or(false))
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
