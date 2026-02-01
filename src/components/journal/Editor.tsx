@@ -6,6 +6,7 @@ import { useEntry, useUpdateEntry, useCreateEntry, useArchiveEntry } from "../..
 import { useUIStore } from "../../stores/ui-store";
 import { useDebouncedSave } from "../../hooks/use-debounced-save";
 import { useSaveOnClose } from "../../hooks/use-save-on-close";
+import { useEmbeddingOnSave } from "../../hooks/use-ml";
 import { Button } from "../ui/Button";
 import { Skeleton } from "../ui/Skeleton";
 import { cn } from "../../lib/utils";
@@ -24,6 +25,7 @@ export function Editor() {
   const updateMutation = useUpdateEntry();
   const createMutation = useCreateEntry();
   const archiveMutation = useArchiveEntry();
+  const { triggerEmbedding } = useEmbeddingOnSave();
 
   const [content, setContent] = useState("");
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -47,13 +49,15 @@ export function Editor() {
         initializedForRef.current = response.id;
         openEditor(response.id);
         setSaveError(null);
+        // Trigger embedding generation in background
+        triggerEmbedding(response.id);
       } catch (error) {
         setSaveError(error instanceof Error ? error.message : "Failed to create entry");
       } finally {
         createInFlightRef.current = false;
       }
     },
-    [createMutation, openEditor]
+    [createMutation, openEditor, triggerEmbedding]
   );
 
   const handleSaveExisting = useCallback(
@@ -61,11 +65,13 @@ export function Editor() {
       try {
         await updateMutation.mutateAsync({ id: entryId, content: contentToSave });
         setSaveError(null);
+        // Trigger embedding regeneration in background
+        triggerEmbedding(entryId);
       } catch (error) {
         setSaveError(error instanceof Error ? error.message : "Failed to save entry");
       }
     },
-    [updateMutation]
+    [updateMutation, triggerEmbedding]
   );
 
   const debouncedSave = useDebouncedSave({

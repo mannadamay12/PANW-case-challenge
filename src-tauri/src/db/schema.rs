@@ -38,6 +38,12 @@ pub fn run_migrations(conn: &Connection) -> Result<(), AppError> {
             content='journals',
             content_rowid='rowid'
         );
+
+        -- Vector embeddings for semantic search (384-dim all-MiniLM-L6-v2)
+        CREATE VIRTUAL TABLE IF NOT EXISTS journal_embeddings USING vec0(
+            journal_id TEXT PRIMARY KEY,
+            embedding FLOAT[384]
+        );
         "#,
     )?;
 
@@ -79,9 +85,19 @@ fn create_fts_triggers(conn: &Connection) -> Result<(), AppError> {
 mod tests {
     use super::*;
 
+    fn setup_test_db() -> Connection {
+        // Register sqlite-vec extension before opening connection
+        unsafe {
+            rusqlite::ffi::sqlite3_auto_extension(Some(std::mem::transmute(
+                sqlite_vec::sqlite3_vec_init as *const (),
+            )));
+        }
+        Connection::open_in_memory().unwrap()
+    }
+
     #[test]
     fn test_migrations_idempotent() {
-        let conn = Connection::open_in_memory().unwrap();
+        let conn = setup_test_db();
 
         // Run migrations twice - should not error
         run_migrations(&conn).unwrap();

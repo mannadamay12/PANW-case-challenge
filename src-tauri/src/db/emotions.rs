@@ -1,53 +1,16 @@
 use rusqlite::{params, Connection};
-use serde::{Deserialize, Serialize};
 
 use crate::error::AppError;
 
-/// Emotion classification result from sentiment analysis.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct JournalEmotion {
-    pub id: i64,
-    pub journal_id: String,
-    pub emotion_label: String,
-    pub confidence_score: f64,
-}
-
-/// Store emotion classification results for a journal entry.
-pub fn store_emotions(
-    conn: &Connection,
-    journal_id: &str,
-    emotions: &[(String, f64)],
-) -> Result<(), AppError> {
-    for (label, score) in emotions {
-        conn.execute(
-            "INSERT INTO journal_emotions (journal_id, emotion_label, confidence_score) VALUES (?1, ?2, ?3)",
-            params![journal_id, label, score],
-        )?;
-    }
-
-    log::info!(
-        "Stored {} emotions for entry: id={}",
-        emotions.len(),
-        journal_id
-    );
-
-    Ok(())
-}
-
-/// Get emotions for a journal entry.
-pub fn get_emotions(conn: &Connection, journal_id: &str) -> Result<Vec<JournalEmotion>, AppError> {
+/// Get emotions for a journal entry as (label, score) pairs.
+pub fn get(conn: &Connection, journal_id: &str) -> Result<Vec<(String, f32)>, AppError> {
     let mut stmt = conn.prepare(
-        "SELECT id, journal_id, emotion_label, confidence_score FROM journal_emotions WHERE journal_id = ?1 ORDER BY confidence_score DESC",
+        "SELECT emotion_label, confidence_score FROM journal_emotions WHERE journal_id = ?1 ORDER BY confidence_score DESC",
     )?;
 
     let emotions = stmt
         .query_map(params![journal_id], |row| {
-            Ok(JournalEmotion {
-                id: row.get(0)?,
-                journal_id: row.get(1)?,
-                emotion_label: row.get(2)?,
-                confidence_score: row.get(3)?,
-            })
+            Ok((row.get::<_, String>(0)?, row.get::<_, f64>(1)? as f32))
         })?
         .filter_map(|r| r.ok())
         .collect();
@@ -55,14 +18,17 @@ pub fn get_emotions(conn: &Connection, journal_id: &str) -> Result<Vec<JournalEm
     Ok(emotions)
 }
 
-/// Delete emotions for a journal entry.
-/// Called automatically via CASCADE when journal is deleted.
-pub fn delete_emotions(conn: &Connection, journal_id: &str) -> Result<(), AppError> {
+/// Store a single emotion for a journal entry.
+pub fn store(
+    conn: &Connection,
+    journal_id: &str,
+    label: &str,
+    score: f32,
+) -> Result<(), AppError> {
     conn.execute(
-        "DELETE FROM journal_emotions WHERE journal_id = ?1",
-        params![journal_id],
+        "INSERT INTO journal_emotions (journal_id, emotion_label, confidence_score) VALUES (?1, ?2, ?3)",
+        params![journal_id, label, score as f64],
     )?;
-
     Ok(())
 }
 
@@ -72,6 +38,12 @@ mod tests {
     use crate::db::schema::run_migrations;
 
     fn setup_test_db() -> Connection {
+        // Register sqlite-vec extension before opening connection
+        unsafe {
+            rusqlite::ffi::sqlite3_auto_extension(Some(std::mem::transmute(
+                sqlite_vec::sqlite3_vec_init as *const (),
+            )));
+        }
         let conn = Connection::open_in_memory().unwrap();
         run_migrations(&conn).unwrap();
         conn
@@ -88,36 +60,13 @@ mod tests {
         )
         .unwrap();
 
-        let emotions = vec![
-            ("Joy".to_string(), 0.85),
-            ("Gratitude".to_string(), 0.72),
-            ("Optimism".to_string(), 0.65),
-        ];
+        store(&conn, "test-id", "Joy", 0.85).unwrap();
+        store(&conn, "test-id", "Gratitude", 0.72).unwrap();
+        store(&conn, "test-id", "Optimism", 0.65).unwrap();
 
-        store_emotions(&conn, "test-id", &emotions).unwrap();
-
-        let retrieved = get_emotions(&conn, "test-id").unwrap();
+        let retrieved = get(&conn, "test-id").unwrap();
         assert_eq!(retrieved.len(), 3);
-        assert_eq!(retrieved[0].emotion_label, "Joy");
-        assert!((retrieved[0].confidence_score - 0.85).abs() < 0.001);
-    }
-
-    #[test]
-    fn test_delete_emotions() {
-        let conn = setup_test_db();
-
-        conn.execute(
-            "INSERT INTO journals (id, content) VALUES ('test-id', 'Test content')",
-            [],
-        )
-        .unwrap();
-
-        let emotions = vec![("Sadness".to_string(), 0.9)];
-        store_emotions(&conn, "test-id", &emotions).unwrap();
-
-        delete_emotions(&conn, "test-id").unwrap();
-
-        let retrieved = get_emotions(&conn, "test-id").unwrap();
-        assert!(retrieved.is_empty());
+        assert_eq!(retrieved[0].0, "Joy");
+        assert!((retrieved[0].1 - 0.85).abs() < 0.01);
     }
 }

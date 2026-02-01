@@ -13,6 +13,12 @@ pub enum AppError {
 
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
+
+    #[error("ML error: {0}")]
+    Ml(String),
+
+    #[error("Model not ready: {0}")]
+    ModelNotReady(String),
 }
 
 impl serde::Serialize for AppError {
