@@ -47,6 +47,31 @@ pub fn run_migrations(conn: &Connection) -> Result<(), AppError> {
             embedding FLOAT[384]
         );
 
+        -- Embedding metadata for version tracking (vec0 tables don't support extra columns)
+        CREATE TABLE IF NOT EXISTS embedding_metadata (
+            journal_id TEXT PRIMARY KEY,
+            model_version TEXT NOT NULL,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (journal_id) REFERENCES journals(id) ON DELETE CASCADE
+        );
+
+        -- Chunk embeddings for better RAG on long entries
+        CREATE TABLE IF NOT EXISTS embedding_chunks (
+            id TEXT PRIMARY KEY,
+            journal_id TEXT NOT NULL,
+            chunk_index INTEGER NOT NULL,
+            chunk_text TEXT NOT NULL,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (journal_id) REFERENCES journals(id) ON DELETE CASCADE
+        );
+        CREATE INDEX IF NOT EXISTS idx_chunks_journal ON embedding_chunks(journal_id);
+
+        -- Vector embeddings for chunks (384-dim all-MiniLM-L6-v2)
+        CREATE VIRTUAL TABLE IF NOT EXISTS chunk_embeddings USING vec0(
+            chunk_id TEXT PRIMARY KEY,
+            embedding FLOAT[384]
+        );
+
         -- Journal templates table
         CREATE TABLE IF NOT EXISTS journal_templates (
             id TEXT PRIMARY KEY,

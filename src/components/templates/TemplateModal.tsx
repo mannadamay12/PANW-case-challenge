@@ -156,7 +156,7 @@ export function TemplateModal({ isOpen, onClose, editingId }: TemplateModalProps
             </div>
 
             {showIconPicker && (
-              <div className="mt-4 p-4 border border-sanctuary-border rounded-lg bg-stone-50">
+              <div className="mt-4 p-4 border border-sanctuary-border rounded-lg bg-sanctuary-bg">
                 <IconPicker
                   value={icon}
                   onChange={(newIcon) => {
@@ -178,7 +178,7 @@ export function TemplateModal({ isOpen, onClose, editingId }: TemplateModalProps
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="e.g., Daily Gratitude"
-              className="w-full px-3 py-2 rounded-lg border border-sanctuary-border bg-white text-sanctuary-text placeholder:text-sanctuary-muted/50 focus:outline-none focus:ring-2 focus:ring-sanctuary-accent"
+              className="w-full px-3 py-2 rounded-lg border border-sanctuary-border bg-sanctuary-card text-sanctuary-text placeholder:text-sanctuary-muted/50 focus:outline-none focus:ring-2 focus:ring-sanctuary-accent"
               required
               disabled={isDefault}
             />
@@ -192,7 +192,7 @@ export function TemplateModal({ isOpen, onClose, editingId }: TemplateModalProps
             <select
               value={category}
               onChange={(e) => setCategory(e.target.value as TemplateCategory)}
-              className="w-full px-3 py-2 rounded-lg border border-sanctuary-border bg-white text-sanctuary-text focus:outline-none focus:ring-2 focus:ring-sanctuary-accent"
+              className="w-full px-3 py-2 rounded-lg border border-sanctuary-border bg-sanctuary-card text-sanctuary-text focus:outline-none focus:ring-2 focus:ring-sanctuary-accent"
               disabled={isDefault}
             >
               {CATEGORY_ORDER.map((cat) => (
@@ -213,7 +213,7 @@ export function TemplateModal({ isOpen, onClose, editingId }: TemplateModalProps
               onChange={(e) => setPrompt(e.target.value)}
               placeholder="e.g., What are three things I'm grateful for?"
               rows={2}
-              className="w-full px-3 py-2 rounded-lg border border-sanctuary-border bg-white text-sanctuary-text placeholder:text-sanctuary-muted/50 focus:outline-none focus:ring-2 focus:ring-sanctuary-accent resize-none"
+              className="w-full px-3 py-2 rounded-lg border border-sanctuary-border bg-sanctuary-card text-sanctuary-text placeholder:text-sanctuary-muted/50 focus:outline-none focus:ring-2 focus:ring-sanctuary-accent resize-none"
               required
             />
             <p className="text-xs text-sanctuary-muted mt-1">
@@ -231,7 +231,7 @@ export function TemplateModal({ isOpen, onClose, editingId }: TemplateModalProps
               onChange={(e) => setTemplateText(e.target.value)}
               placeholder="e.g., Today I am grateful for"
               rows={2}
-              className="w-full px-3 py-2 rounded-lg border border-sanctuary-border bg-white text-sanctuary-text placeholder:text-sanctuary-muted/50 focus:outline-none focus:ring-2 focus:ring-sanctuary-accent resize-none"
+              className="w-full px-3 py-2 rounded-lg border border-sanctuary-border bg-sanctuary-card text-sanctuary-text placeholder:text-sanctuary-muted/50 focus:outline-none focus:ring-2 focus:ring-sanctuary-accent resize-none"
             />
             <p className="text-xs text-sanctuary-muted mt-1">
               Pre-filled text to start the entry

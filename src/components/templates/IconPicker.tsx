@@ -108,8 +108,8 @@ export function IconPicker({ value, onChange }: IconPickerProps) {
             className={cn(
               "p-2 rounded-lg transition-all flex items-center justify-center",
               isSelected
-                ? "bg-sanctuary-accent text-white ring-2 ring-sanctuary-accent ring-offset-2"
-                : "bg-stone-100 text-sanctuary-muted hover:bg-stone-200 hover:text-sanctuary-text"
+                ? "bg-sanctuary-accent text-white ring-2 ring-sanctuary-accent ring-offset-2 dark:ring-offset-sanctuary-card"
+                : "bg-sanctuary-hover text-sanctuary-muted hover:bg-sanctuary-selected hover:text-sanctuary-text"
             )}
             title={iconName}
           >

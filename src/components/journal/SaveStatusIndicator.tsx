@@ -1,3 +1,4 @@
+import { useState, useEffect, useRef } from "react";
 import { Loader2, CheckCircle } from "lucide-react";
 import { cn } from "../../lib/utils";
 import type { SaveStatus } from "../../hooks/use-debounced-save";
@@ -11,6 +12,18 @@ export function SaveStatusIndicator({
   status,
   className,
 }: SaveStatusIndicatorProps) {
+  const [showPulse, setShowPulse] = useState(false);
+  const prevStatus = useRef(status);
+
+  useEffect(() => {
+    if (prevStatus.current !== "saved" && status === "saved") {
+      setShowPulse(true);
+      const timer = setTimeout(() => setShowPulse(false), 300);
+      return () => clearTimeout(timer);
+    }
+    prevStatus.current = status;
+  }, [status]);
+
   return (
     <div
       className={cn(
@@ -31,7 +44,7 @@ export function SaveStatusIndicator({
       )}
       {status === "saved" && (
         <>
-          <CheckCircle className="h-3 w-3" />
+          <CheckCircle className={cn("h-3 w-3", showPulse && "animate-subtle-pulse")} />
           <span>Saved</span>
         </>
       )}

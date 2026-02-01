@@ -4,7 +4,7 @@ pub mod safety;
 
 use serde::Serialize;
 
-pub use chat::ChatService;
+pub use chat::{ChatService, SourceReference};
 pub use ollama::{OllamaClient, OllamaStatus};
 pub use safety::{SafetyFilter, SafetyResult};
 

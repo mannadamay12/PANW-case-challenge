@@ -24,7 +24,7 @@ export function EmotionBadges({
   if (isLoading) {
     return (
       <div className={cn("flex gap-1", className)}>
-        <span className="h-5 w-12 animate-pulse rounded-full bg-stone-200" />
+        <span className="h-5 w-12 animate-pulse rounded-full bg-sanctuary-border" />
       </div>
     );
   }
@@ -52,7 +52,7 @@ export function EmotionBadges({
         </span>
       ))}
       {remaining > 0 && (
-        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-stone-100 text-stone-600">
+        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-sanctuary-hover text-sanctuary-muted">
           +{remaining}
         </span>
       )}

@@ -5,6 +5,7 @@ import { cn } from "../../lib/utils";
 import { useUIStore } from "../../stores/ui-store";
 import { useChatStore } from "../../stores/chat-store";
 import { useEntryMessages, useEntryChatStream, useOllamaStatus } from "../../hooks/use-chat";
+import { useAnimatedPresence } from "../../hooks/use-animated-presence";
 import { SafetyModal } from "../chat/SafetyModal";
 import { DistressBanner } from "../chat/DistressBanner";
 import type { ChatMessage } from "../../types/chat";
@@ -24,6 +25,7 @@ const QUICK_ACTIONS = [
 
 export function AISidepanel({ journalId, entryContent: _entryContent }: AISidepanelProps) {
   const { isAIPanelOpen, setAIPanelOpen } = useUIStore();
+  const { shouldRender, isAnimating } = useAnimatedPresence(isAIPanelOpen, 200);
   const { messages, isLoading } = useEntryMessages(journalId);
   const { sendMessage, isStreaming } = useEntryChatStream(journalId);
   const { data: ollamaStatus } = useOllamaStatus();
@@ -80,10 +82,13 @@ export function AISidepanel({ journalId, entryContent: _entryContent }: AISidepa
     sendMessage(prompt);
   };
 
-  if (!isAIPanelOpen) return null;
+  if (!shouldRender) return null;
 
   return (
-    <div className="w-80 border-l border-sanctuary-border bg-sanctuary-bg flex flex-col h-full">
+    <div className={cn(
+      "w-80 border-l border-sanctuary-border bg-sanctuary-bg flex flex-col h-full",
+      isAnimating ? "animate-slide-in-right" : "animate-slide-out-right"
+    )}>
       {/* Header */}
       <div className="flex items-center justify-between px-3 py-2 border-b border-sanctuary-border">
         <div className="flex items-center gap-2">
@@ -206,7 +211,7 @@ function MessageBubble({ message }: { message: ChatMessage }) {
   return (
     <div
       className={cn(
-        "flex w-full",
+        "flex w-full animate-slide-up",
         isUser ? "justify-end" : "justify-start"
       )}
     >

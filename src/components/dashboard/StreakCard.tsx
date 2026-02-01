@@ -49,7 +49,7 @@ export function StreakCard({
           className={cn(
             "w-14 h-14 rounded-full flex items-center justify-center",
             isOnFire
-              ? "bg-gradient-to-br from-orange-100 to-red-100"
+              ? "bg-orange-500/20"
               : "bg-sanctuary-accent/10"
           )}
         >

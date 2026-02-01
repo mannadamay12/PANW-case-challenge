@@ -47,7 +47,7 @@ export function EntryTypeSelector({
         onClick={() => setIsOpen(!isOpen)}
         className={cn(
           "flex items-center gap-1.5 rounded-md transition-colors",
-          "text-sanctuary-muted hover:text-sanctuary-text hover:bg-stone-100",
+          "text-sanctuary-muted hover:text-sanctuary-text hover:bg-sanctuary-hover",
           compact ? "px-2 py-1 text-xs" : "px-3 py-1.5 text-sm"
         )}
       >
@@ -74,8 +74,8 @@ export function EntryTypeSelector({
               className={cn(
                 "flex w-full items-center gap-2 px-3 py-2 text-sm transition-colors",
                 type === value
-                  ? "bg-stone-100 text-sanctuary-text"
-                  : "text-sanctuary-muted hover:bg-stone-50 hover:text-sanctuary-text"
+                  ? "bg-sanctuary-selected text-sanctuary-text"
+                  : "text-sanctuary-muted hover:bg-sanctuary-hover hover:text-sanctuary-text"
               )}
             >
               <TypeIcon className="h-4 w-4" />

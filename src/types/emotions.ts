@@ -24,8 +24,8 @@ export interface HybridSearchParams {
   includeArchived?: boolean;
 }
 
-// Muted emotion display - all emotions use the same subtle grey styling
-const MUTED_EMOTION_STYLE = "bg-stone-100 text-stone-600";
+// Muted emotion display - all emotions use the same subtle grey styling with dark mode support
+const MUTED_EMOTION_STYLE = "bg-sanctuary-hover text-sanctuary-muted";
 
 // Get display color for an emotion (now always returns muted grey)
 export function getEmotionColor(_emotion: string): string {

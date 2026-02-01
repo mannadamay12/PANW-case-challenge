@@ -1,6 +1,8 @@
 use regex::RegexSet;
 use serde::Serialize;
 
+use crate::ml::sentiment::EmotionPrediction;
+
 /// Crisis keywords that trigger a hard block.
 const CRISIS_KEYWORDS: &[&str] = &[
     r"\bsuicide\b",
@@ -50,6 +52,16 @@ impl SafetyFilter {
     /// Check a message for safety concerns.
     /// Returns a SafetyResult indicating whether the message is safe to process.
     pub fn check(&self, text: &str) -> SafetyResult {
+        self.check_with_emotions(text, None)
+    }
+
+    /// Check a message for safety concerns, considering emotion predictions.
+    /// High grief, fear, or sadness scores can escalate safe messages to distress level.
+    pub fn check_with_emotions(
+        &self,
+        text: &str,
+        emotions: Option<&[EmotionPrediction]>,
+    ) -> SafetyResult {
         let lower = text.to_lowercase();
 
         // Check for crisis keywords (hard block)
@@ -68,6 +80,25 @@ impl SafetyFilter {
                 level: SafetyLevel::Distress,
                 intervention: Some(DISTRESS_MESSAGE.to_string()),
             };
+        }
+
+        // Check emotion scores for indirect distress signals
+        if let Some(emotions) = emotions {
+            let high_risk_emotion = emotions.iter().any(|e| {
+                let is_risk_emotion = matches!(
+                    e.label.to_lowercase().as_str(),
+                    "grief" | "fear" | "sadness" | "nervousness" | "disappointment"
+                );
+                is_risk_emotion && e.score > 0.5
+            });
+
+            if high_risk_emotion {
+                return SafetyResult {
+                    safe: true,
+                    level: SafetyLevel::Distress,
+                    intervention: Some(EMOTION_DISTRESS_MESSAGE.to_string()),
+                };
+            }
         }
 
         SafetyResult {
@@ -128,6 +159,10 @@ You don't have to face this alone. A trained counselor is available 24/7."#;
 /// Message shown for distress-level content.
 const DISTRESS_MESSAGE: &str =
     "I hear that you're going through a difficult time. Your feelings are valid.";
+
+/// Message shown when emotion analysis detects high distress.
+const EMOTION_DISTRESS_MESSAGE: &str =
+    "I notice you might be going through a difficult time. Remember, it's okay to feel this way, and you don't have to face it alone.";
 
 /// Support resources appended to responses when distress is detected.
 const SUPPORT_RESOURCES: &str = r#"---
@@ -190,5 +225,51 @@ mod tests {
         let result = filter.check("I WANT TO KILL MYSELF");
         assert!(!result.safe);
         assert_eq!(result.level, SafetyLevel::Crisis);
+    }
+
+    #[test]
+    fn test_emotion_based_distress_detection() {
+        let filter = SafetyFilter::new();
+
+        // High grief emotion should trigger distress even without keywords
+        let emotions = vec![EmotionPrediction {
+            label: "grief".to_string(),
+            score: 0.7,
+        }];
+
+        let result = filter.check_with_emotions("Today was really hard", Some(&emotions));
+        assert!(result.safe);
+        assert_eq!(result.level, SafetyLevel::Distress);
+        assert!(result.intervention.is_some());
+    }
+
+    #[test]
+    fn test_low_emotion_scores_remain_safe() {
+        let filter = SafetyFilter::new();
+
+        // Low emotion scores should not trigger distress
+        let emotions = vec![EmotionPrediction {
+            label: "sadness".to_string(),
+            score: 0.3,
+        }];
+
+        let result = filter.check_with_emotions("I felt a bit down today", Some(&emotions));
+        assert!(result.safe);
+        assert_eq!(result.level, SafetyLevel::Safe);
+    }
+
+    #[test]
+    fn test_positive_emotions_stay_safe() {
+        let filter = SafetyFilter::new();
+
+        // High positive emotions should not trigger distress
+        let emotions = vec![EmotionPrediction {
+            label: "joy".to_string(),
+            score: 0.9,
+        }];
+
+        let result = filter.check_with_emotions("What a great day!", Some(&emotions));
+        assert!(result.safe);
+        assert_eq!(result.level, SafetyLevel::Safe);
     }
 }

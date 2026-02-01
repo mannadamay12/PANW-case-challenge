@@ -101,21 +101,54 @@ fn fts_search(
     Ok(results)
 }
 
-/// Perform vector similarity search.
+/// Perform vector similarity search using both entry embeddings and chunks.
+/// Chunks provide better precision for long entries.
 fn vector_search(
     conn: &Connection,
     query_embedding: &[f32],
     limit: usize,
     include_archived: bool,
 ) -> Result<Vec<(String, f64)>, AppError> {
-    // Get raw vector search results
-    let vec_results = vectors::search_similar(conn, query_embedding, limit * 2)?;
+    // Get results from entry-level embeddings
+    let entry_results = vectors::search_similar(conn, query_embedding, limit * 2)?;
+
+    // Get results from chunk embeddings (may return multiple chunks per entry)
+    let chunk_results = vectors::search_similar_chunks(conn, query_embedding, limit * 3)?;
+
+    // Combine: use best score per journal_id from either source
+    let mut best_scores: HashMap<String, f64> = HashMap::new();
+
+    for (id, distance) in &entry_results {
+        best_scores
+            .entry(id.clone())
+            .and_modify(|d| {
+                if *distance < *d {
+                    *d = *distance
+                }
+            })
+            .or_insert(*distance);
+    }
+
+    for chunk in &chunk_results {
+        best_scores
+            .entry(chunk.journal_id.clone())
+            .and_modify(|d| {
+                if chunk.distance < *d {
+                    *d = chunk.distance
+                }
+            })
+            .or_insert(chunk.distance);
+    }
+
+    // Sort by distance and take top results
+    let mut combined: Vec<(String, f64)> = best_scores.into_iter().collect();
+    combined.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
 
     if !include_archived {
-        // Filter out archived entries - prepare statement once before loop
+        // Filter out archived entries
         let mut stmt = conn.prepare("SELECT is_archived FROM journals WHERE id = ?")?;
-        let mut filtered = Vec::with_capacity(vec_results.len());
-        for (id, distance) in vec_results {
+        let mut filtered = Vec::with_capacity(combined.len());
+        for (id, distance) in combined {
             match stmt.query_row([&id], |row| row.get::<_, bool>(0)) {
                 Ok(is_archived) => {
                     if !is_archived {
@@ -136,7 +169,7 @@ fn vector_search(
         }
         Ok(filtered)
     } else {
-        Ok(vec_results.into_iter().take(limit).collect())
+        Ok(combined.into_iter().take(limit).collect())
     }
 }
 

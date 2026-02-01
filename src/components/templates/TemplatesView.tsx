@@ -83,7 +83,7 @@ export function TemplatesView() {
   }
 
   return (
-    <div className="h-full flex flex-col bg-white">
+    <div className="h-full flex flex-col bg-sanctuary-card">
       {/* Compact header */}
       <div className="px-6 py-4 border-b border-sanctuary-border">
         <div className="flex items-center justify-between mb-4">
@@ -105,7 +105,7 @@ export function TemplatesView() {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search templates..."
-            className="w-full pl-10 pr-4 py-2 rounded-lg border border-sanctuary-border bg-white text-sanctuary-text placeholder:text-sanctuary-muted/50 focus:outline-none focus:ring-2 focus:ring-sanctuary-accent"
+            className="w-full pl-10 pr-4 py-2 rounded-lg border border-sanctuary-border bg-sanctuary-card text-sanctuary-text placeholder:text-sanctuary-muted/50 focus:outline-none focus:ring-2 focus:ring-sanctuary-accent"
           />
         </div>
       </div>
