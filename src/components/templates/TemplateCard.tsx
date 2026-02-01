@@ -71,7 +71,7 @@ export function TemplateCard({ template, onUse, onEdit, onDelete }: TemplateCard
                 setShowMenu(false);
                 onEdit(template);
               }}
-              className="flex w-full items-center gap-2 px-3 py-2 text-sm text-sanctuary-muted hover:bg-stone-100 hover:text-sanctuary-text"
+              className="flex w-full items-center gap-2 px-3 py-2 text-sm text-sanctuary-muted hover:bg-sanctuary-hover hover:text-sanctuary-text"
             >
               <Pencil className="h-4 w-4" />
               Edit
@@ -82,7 +82,7 @@ export function TemplateCard({ template, onUse, onEdit, onDelete }: TemplateCard
                   setShowMenu(false);
                   onDelete(template);
                 }}
-                className="flex w-full items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50"
+                className="flex w-full items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-950"
               >
                 <Trash2 className="h-4 w-4" />
                 Delete
@@ -95,7 +95,7 @@ export function TemplateCard({ template, onUse, onEdit, onDelete }: TemplateCard
       {/* Default badge */}
       {template.is_default && (
         <div className="absolute bottom-2 right-2">
-          <span className="text-xs text-sanctuary-muted/60 bg-stone-100 px-2 py-0.5 rounded-full">
+          <span className="text-xs text-sanctuary-muted/60 bg-sanctuary-hover px-2 py-0.5 rounded-full">
             Default
           </span>
         </div>

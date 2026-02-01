@@ -1,5 +1,6 @@
 import { AppShell } from "./components/layout/AppShell";
 import { SetupWizard, wasSetupSkipped } from "./components/setup/SetupWizard";
+import { ErrorBoundary } from "./components/ui/ErrorBoundary";
 import { useModelStatus } from "./hooks/use-ml";
 
 function App() {
@@ -10,10 +11,10 @@ function App() {
   const needsSetup = !isLoading && !modelsReady && !wasSetupSkipped();
 
   return (
-    <>
+    <ErrorBoundary>
       {needsSetup && <SetupWizard onComplete={() => refetch()} />}
       <AppShell />
-    </>
+    </ErrorBoundary>
   );
 }
 

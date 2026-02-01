@@ -55,10 +55,7 @@ pub fn get_daily_emotions(
     let mut date_entries: std::collections::HashMap<String, Vec<String>> =
         std::collections::HashMap::new();
     for (entry_id, date) in entries {
-        date_entries
-            .entry(date)
-            .or_default()
-            .push(entry_id);
+        date_entries.entry(date).or_default().push(entry_id);
     }
 
     // For each date, find the dominant emotion across all entries
@@ -81,10 +78,9 @@ pub fn get_daily_emotions(
 
         let mut emotion_stmt = conn.prepare(&sql)?;
         let dominant: Option<String> = emotion_stmt
-            .query_row(
-                rusqlite::params_from_iter(entry_ids.iter()),
-                |row| row.get(0),
-            )
+            .query_row(rusqlite::params_from_iter(entry_ids.iter()), |row| {
+                row.get(0)
+            })
             .ok();
 
         results.push((date, dominant, entry_count));

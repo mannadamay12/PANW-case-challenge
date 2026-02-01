@@ -133,7 +133,7 @@ export function MonthlyCalendar({
         <div className="flex items-center gap-1">
           <button
             onClick={handlePrevMonth}
-            className="p-1 rounded-md hover:bg-stone-100 text-sanctuary-muted transition-colors"
+            className="p-1 rounded-md hover:bg-sanctuary-hover text-sanctuary-muted transition-colors"
           >
             <ChevronLeft className="h-5 w-5" />
           </button>
@@ -143,8 +143,8 @@ export function MonthlyCalendar({
             className={cn(
               "p-1 rounded-md transition-colors",
               isSameMonth(currentDate, today)
-                ? "text-stone-300 cursor-not-allowed"
-                : "hover:bg-stone-100 text-sanctuary-muted"
+                ? "text-sanctuary-border cursor-not-allowed"
+                : "hover:bg-sanctuary-hover text-sanctuary-muted"
             )}
           >
             <ChevronRight className="h-5 w-5" />
@@ -178,7 +178,7 @@ export function MonthlyCalendar({
               key={dateStr}
               className={cn(
                 "aspect-square flex items-center justify-center text-sm relative",
-                !isCurrentMonth && "text-stone-300"
+                !isCurrentMonth && "text-sanctuary-border"
               )}
             >
               {hasEntry && !isFuture && (
