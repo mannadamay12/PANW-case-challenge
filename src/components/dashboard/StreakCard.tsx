@@ -1,4 +1,4 @@
-import { Flame, Trophy } from "lucide-react";
+import { Flame, Trophy } from "@phosphor-icons/react";
 import { Skeleton } from "../ui/Skeleton";
 import { cn } from "../../lib/utils";
 

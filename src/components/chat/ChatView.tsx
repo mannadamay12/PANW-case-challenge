@@ -1,4 +1,4 @@
-import { Trash2 } from "lucide-react";
+import { Trash } from "@phosphor-icons/react";
 import { Button } from "../ui/Button";
 import { MessageList } from "./MessageList";
 import { ChatInput } from "./ChatInput";
@@ -34,7 +34,7 @@ export function ChatView() {
             onClick={() => clearMessages(GLOBAL_KEY)}
             className="text-sanctuary-muted hover:text-red-600"
           >
-            <Trash2 className="h-4 w-4 mr-1" />
+            <Trash className="h-4 w-4 mr-1" />
             Clear
           </Button>
         )}

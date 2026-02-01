@@ -50,6 +50,7 @@ pub fn store_embedding_with_version(
 }
 
 /// Get the model version used to generate an embedding.
+#[allow(dead_code)]
 pub fn get_embedding_version(
     conn: &Connection,
     journal_id: &str,
@@ -65,6 +66,7 @@ pub fn get_embedding_version(
 }
 
 /// Get all embeddings that need re-generation (different model version).
+#[allow(dead_code)]
 pub fn get_outdated_embeddings(conn: &Connection) -> Result<Vec<String>, AppError> {
     let mut stmt = conn.prepare(
         r#"
@@ -194,6 +196,7 @@ pub fn store_chunk_embeddings(
 
 /// Search result including chunk information.
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct ChunkSearchResult {
     pub journal_id: String,
     pub chunk_id: String,
@@ -245,6 +248,7 @@ pub fn search_similar_chunks(
 }
 
 /// Check if chunks exist for a journal entry.
+#[allow(dead_code)]
 pub fn has_chunks(conn: &Connection, journal_id: &str) -> Result<bool, AppError> {
     let mut stmt = conn.prepare("SELECT 1 FROM embedding_chunks WHERE journal_id = ? LIMIT 1")?;
     let exists = stmt.exists([journal_id])?;

@@ -1,9 +1,8 @@
-import { Plus, PanelLeft, PanelLeftClose, Wand2 } from "lucide-react";
+import { Plus, SidebarSimple, MagicWand } from "@phosphor-icons/react";
 import { FontSizeMenu } from "./FontSizeMenu";
 import { EditorOptionsMenu } from "./EditorOptionsMenu";
 import { useUIStore } from "../../stores/ui-store";
 import { cn } from "../../lib/utils";
-import type { EntryType } from "../../types/journal";
 
 const iconButtonClass = cn(
   "flex items-center justify-center p-1.5 rounded-md",
@@ -13,8 +12,8 @@ const iconButtonClass = cn(
 
 interface TitlebarProps {
   entryId: string | null;
-  entryType: EntryType;
-  onChangeEntryType: (type: EntryType) => void;
+  entryDate?: string | null;
+  onChangeDate?: (date: string) => void;
   isArchived?: boolean;
   onArchive?: () => void;
   onDelete?: () => void;
@@ -23,8 +22,8 @@ interface TitlebarProps {
 
 export function Titlebar({
   entryId,
-  entryType,
-  onChangeEntryType,
+  entryDate,
+  onChangeDate,
   isArchived = false,
   onArchive,
   onDelete,
@@ -39,16 +38,19 @@ export function Titlebar({
     isEditorOpen,
   } = useUIStore();
 
-  const handleOpenLibrary = () => {
+  const handleOpenGallery = () => {
     setActiveView("library");
   };
 
-  // Format: "Saturday, Feb 1"
-  const currentDate = new Date().toLocaleDateString("en-US", {
+  // Format: "Saturday, Feb 1" - use entry date if available, otherwise today
+  const dateFormatOptions: Intl.DateTimeFormatOptions = {
     weekday: "long",
     month: "short",
     day: "numeric",
-  });
+  };
+  const displayDate = entryDate
+    ? new Date(entryDate).toLocaleDateString("en-US", dateFormatOptions)
+    : new Date().toLocaleDateString("en-US", dateFormatOptions);
 
   return (
     <header
@@ -69,11 +71,7 @@ export function Titlebar({
           title={isSidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
           className={cn(iconButtonClass, "titlebar-no-drag")}
         >
-          {isSidebarOpen ? (
-            <PanelLeftClose className="h-4 w-4" />
-          ) : (
-            <PanelLeft className="h-4 w-4" />
-          )}
+          <SidebarSimple className="h-4 w-4" weight={isSidebarOpen ? "fill" : "regular"} />
         </button>
       </div>
 
@@ -86,7 +84,7 @@ export function Titlebar({
           data-tauri-drag-region
           className="text-sm text-sanctuary-muted select-none"
         >
-          {isEditorOpen ? currentDate : "MindScribe"}
+          {isEditorOpen ? displayDate : "MindScribe"}
         </span>
       </div>
 
@@ -101,7 +99,7 @@ export function Titlebar({
             isAIPanelOpen && "bg-sanctuary-hover text-sanctuary-text"
           )}
         >
-          <Wand2 className="h-4 w-4" />
+          <MagicWand className="h-4 w-4" />
         </button>
         <div className="titlebar-no-drag">
           <FontSizeMenu />
@@ -109,10 +107,10 @@ export function Titlebar({
         <div className="titlebar-no-drag">
           <EditorOptionsMenu
             entryId={entryId}
-            entryType={entryType}
-            onChangeEntryType={onChangeEntryType}
+            entryDate={entryDate}
+            onChangeDate={onChangeDate}
             isArchived={isArchived}
-            onOpenLibrary={handleOpenLibrary}
+            onOpenGallery={handleOpenGallery}
             onArchive={onArchive}
             onDelete={onDelete}
           />

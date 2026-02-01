@@ -1,4 +1,4 @@
-import { Calendar, ChevronRight } from "lucide-react";
+import { Calendar, CaretRight } from "@phosphor-icons/react";
 import { parseISO, format, differenceInYears } from "date-fns";
 import { Skeleton } from "../ui/Skeleton";
 import { deriveTitle } from "../../lib/entry-utils";
@@ -50,7 +50,7 @@ export function OnThisDay({ entries, isLoading, onOpenEntry }: OnThisDayProps) {
             </time>
             <span className="text-xs text-sanctuary-accent flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
               Read full entry
-              <ChevronRight className="h-3 w-3" />
+              <CaretRight className="h-3 w-3" />
             </span>
           </div>
         </div>

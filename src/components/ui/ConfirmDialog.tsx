@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { X } from "lucide-react";
+import { X } from "@phosphor-icons/react";
 import { Button } from "./Button";
 import { cn } from "../../lib/utils";
 

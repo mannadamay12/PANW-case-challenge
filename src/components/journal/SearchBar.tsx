@@ -1,4 +1,4 @@
-import { Search, X } from "lucide-react";
+import { MagnifyingGlass, X } from "@phosphor-icons/react";
 import { useUIStore } from "../../stores/ui-store";
 import { cn } from "../../lib/utils";
 
@@ -11,7 +11,7 @@ export function SearchBar({ className }: SearchBarProps) {
 
   return (
     <div className={cn("relative", className)}>
-      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-sanctuary-muted" />
+      <MagnifyingGlass className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-sanctuary-muted" />
       <input
         type="text"
         value={searchQuery}
