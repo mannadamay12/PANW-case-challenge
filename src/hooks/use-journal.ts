@@ -5,6 +5,8 @@ import type {
   CreateEntryResponse,
   DeleteResponse,
   ListEntriesParams,
+  CreateEntryParams,
+  UpdateEntryParams,
 } from "../types/journal";
 import { useDebounce } from "./use-debounce";
 
@@ -67,8 +69,15 @@ export function useCreateEntry() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (content: string) => {
-      return invoke<CreateEntryResponse>("create_entry", { content });
+    mutationFn: async (params: CreateEntryParams | string) => {
+      // Support both legacy string param and new object param
+      const { content, title, entry_type } =
+        typeof params === "string" ? { content: params, title: undefined, entry_type: undefined } : params;
+      return invoke<CreateEntryResponse>("create_entry", {
+        content,
+        title,
+        entry_type,
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: journalKeys.all });
@@ -81,10 +90,16 @@ export function useUpdateEntry() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ id, content }: { id: string; content: string }) => {
-      return invoke<JournalEntry>("update_entry", { id, content });
+    mutationFn: async (params: UpdateEntryParams) => {
+      return invoke<JournalEntry>("update_entry", {
+        id: params.id,
+        content: params.content,
+        title: params.title,
+        entry_type: params.entry_type,
+      });
     },
-    onMutate: async ({ id, content }) => {
+    onMutate: async (params) => {
+      const { id, content, title, entry_type } = params;
       // Cancel outgoing refetches
       await queryClient.cancelQueries({ queryKey: journalKeys.detail(id) });
 
@@ -97,7 +112,9 @@ export function useUpdateEntry() {
       if (previousEntry) {
         queryClient.setQueryData<JournalEntry>(journalKeys.detail(id), {
           ...previousEntry,
-          content,
+          ...(content !== undefined && { content }),
+          ...(title !== undefined && { title }),
+          ...(entry_type !== undefined && { entry_type }),
           updated_at: new Date().toISOString(),
         });
       }
@@ -143,6 +160,32 @@ export function useArchiveEntry() {
     onSuccess: (_data, id) => {
       queryClient.invalidateQueries({ queryKey: journalKeys.detail(id) });
       queryClient.invalidateQueries({ queryKey: journalKeys.lists() });
+    },
+  });
+}
+
+// Generate title using LLM
+export function useGenerateTitle() {
+  return useMutation({
+    mutationFn: async (content: string) => {
+      return invoke<string>("generate_title", { content });
+    },
+  });
+}
+
+// Generate titles for all entries that don't have one
+export function useGenerateMissingTitles() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async () => {
+      return invoke<number>("generate_missing_titles");
+    },
+    onSuccess: (count) => {
+      if (count > 0) {
+        // Refresh the entry list to show new titles
+        queryClient.invalidateQueries({ queryKey: journalKeys.all });
+      }
     },
   });
 }

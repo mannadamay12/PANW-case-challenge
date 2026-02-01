@@ -1,13 +1,52 @@
+use std::str::FromStr;
+
 use chrono::{DateTime, Utc};
 use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 
 use crate::error::AppError;
 
+/// Entry types for different journaling modes.
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum EntryType {
+    Morning,
+    Evening,
+    Gratitude,
+    #[default]
+    Reflection,
+}
+
+impl EntryType {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            EntryType::Morning => "morning",
+            EntryType::Evening => "evening",
+            EntryType::Gratitude => "gratitude",
+            EntryType::Reflection => "reflection",
+        }
+    }
+}
+
+impl FromStr for EntryType {
+    type Err = std::convert::Infallible;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(match s.to_lowercase().as_str() {
+            "morning" => EntryType::Morning,
+            "evening" => EntryType::Evening,
+            "gratitude" => EntryType::Gratitude,
+            _ => EntryType::Reflection,
+        })
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Journal {
     pub id: String,
     pub content: String,
+    pub title: Option<String>,
+    pub entry_type: EntryType,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     pub is_archived: bool,
@@ -25,7 +64,12 @@ pub struct DeleteResponse {
 }
 
 /// Create a new journal entry.
-pub fn create(conn: &Connection, content: &str) -> Result<CreateEntryResponse, AppError> {
+pub fn create(
+    conn: &Connection,
+    content: &str,
+    title: Option<&str>,
+    entry_type: Option<&str>,
+) -> Result<CreateEntryResponse, AppError> {
     if content.trim().is_empty() {
         return Err(AppError::InvalidInput(
             "Content cannot be empty".to_string(),
@@ -34,10 +78,11 @@ pub fn create(conn: &Connection, content: &str) -> Result<CreateEntryResponse, A
 
     let id = uuid::Uuid::new_v4().to_string();
     let now = Utc::now();
+    let entry_type_str = entry_type.unwrap_or("reflection");
 
     conn.execute(
-        "INSERT INTO journals (id, content, created_at, updated_at) VALUES (?1, ?2, ?3, ?4)",
-        params![id, content, now.to_rfc3339(), now.to_rfc3339()],
+        "INSERT INTO journals (id, content, title, entry_type, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+        params![id, content, title, entry_type_str, now.to_rfc3339(), now.to_rfc3339()],
     )?;
 
     log::info!("Entry created: id={}", id);
@@ -52,15 +97,18 @@ pub fn create(conn: &Connection, content: &str) -> Result<CreateEntryResponse, A
 pub fn get(conn: &Connection, id: &str) -> Result<Journal, AppError> {
     let journal = conn
         .query_row(
-            "SELECT id, content, created_at, updated_at, is_archived FROM journals WHERE id = ?1",
+            "SELECT id, content, title, entry_type, created_at, updated_at, is_archived FROM journals WHERE id = ?1",
             params![id],
             |row| {
+                let entry_type_str: Option<String> = row.get(3)?;
                 Ok(Journal {
                     id: row.get(0)?,
                     content: row.get(1)?,
-                    created_at: parse_datetime(row.get::<_, String>(2)?),
-                    updated_at: parse_datetime(row.get::<_, String>(3)?),
-                    is_archived: row.get(4)?,
+                    title: row.get(2)?,
+                    entry_type: entry_type_str.as_deref().unwrap_or_default().parse().unwrap_or_default(),
+                    created_at: parse_datetime(row.get::<_, String>(4)?),
+                    updated_at: parse_datetime(row.get::<_, String>(5)?),
+                    is_archived: row.get(6)?,
                 })
             },
         )
@@ -80,8 +128,9 @@ pub fn list(
     let limit = limit.unwrap_or(50).min(100);
     let offset = offset.unwrap_or(0);
 
-    let mut sql =
-        String::from("SELECT id, content, created_at, updated_at, is_archived FROM journals");
+    let mut sql = String::from(
+        "SELECT id, content, title, entry_type, created_at, updated_at, is_archived FROM journals",
+    );
 
     if let Some(archived) = archived {
         sql.push_str(&format!(
@@ -95,12 +144,19 @@ pub fn list(
     let mut stmt = conn.prepare(&sql)?;
     let journals: Vec<Journal> = stmt
         .query_map(params![limit, offset], |row| {
+            let entry_type_str: Option<String> = row.get(3)?;
             Ok(Journal {
                 id: row.get(0)?,
                 content: row.get(1)?,
-                created_at: parse_datetime(row.get::<_, String>(2)?),
-                updated_at: parse_datetime(row.get::<_, String>(3)?),
-                is_archived: row.get(4)?,
+                title: row.get(2)?,
+                entry_type: entry_type_str
+                    .as_deref()
+                    .unwrap_or_default()
+                    .parse()
+                    .unwrap_or_default(),
+                created_at: parse_datetime(row.get::<_, String>(4)?),
+                updated_at: parse_datetime(row.get::<_, String>(5)?),
+                is_archived: row.get(6)?,
             })
         })?
         .filter_map(|r| {
@@ -112,20 +168,69 @@ pub fn list(
     Ok(journals)
 }
 
-/// Update a journal entry's content.
-pub fn update(conn: &Connection, id: &str, content: &str) -> Result<Journal, AppError> {
-    if content.trim().is_empty() {
-        return Err(AppError::InvalidInput(
-            "Content cannot be empty".to_string(),
-        ));
+/// Update a journal entry's content and/or title.
+pub fn update(
+    conn: &Connection,
+    id: &str,
+    content: Option<&str>,
+    title: Option<&str>,
+    entry_type: Option<&str>,
+) -> Result<Journal, AppError> {
+    // Validate content if provided
+    if let Some(c) = content {
+        if c.trim().is_empty() {
+            return Err(AppError::InvalidInput(
+                "Content cannot be empty".to_string(),
+            ));
+        }
     }
 
     let now = Utc::now();
 
-    let rows_affected = conn.execute(
-        "UPDATE journals SET content = ?1, updated_at = ?2 WHERE id = ?3",
-        params![content, now.to_rfc3339(), id],
-    )?;
+    // Build dynamic update query based on provided fields
+    let mut updates = vec!["updated_at = ?1"];
+    let mut param_idx = 2;
+
+    if content.is_some() {
+        updates.push("content = ?2");
+        param_idx = 3;
+    }
+    if title.is_some() {
+        updates.push(if param_idx == 2 {
+            "title = ?2"
+        } else {
+            "title = ?3"
+        });
+        param_idx += 1;
+    }
+    if entry_type.is_some() {
+        let placeholder = match param_idx {
+            2 => "entry_type = ?2",
+            3 => "entry_type = ?3",
+            _ => "entry_type = ?4",
+        };
+        updates.push(placeholder);
+    }
+
+    let sql = format!(
+        "UPDATE journals SET {} WHERE id = ?{}",
+        updates.join(", "),
+        param_idx
+    );
+
+    // Execute with the appropriate parameters
+    let rows_affected = match (content, title, entry_type) {
+        (Some(c), Some(t), Some(e)) => {
+            conn.execute(&sql, params![now.to_rfc3339(), c, t, e, id])?
+        }
+        (Some(c), Some(t), None) => conn.execute(&sql, params![now.to_rfc3339(), c, t, id])?,
+        (Some(c), None, Some(e)) => conn.execute(&sql, params![now.to_rfc3339(), c, e, id])?,
+        (Some(c), None, None) => conn.execute(&sql, params![now.to_rfc3339(), c, id])?,
+        (None, Some(t), Some(e)) => conn.execute(&sql, params![now.to_rfc3339(), t, e, id])?,
+        (None, Some(t), None) => conn.execute(&sql, params![now.to_rfc3339(), t, id])?,
+        (None, None, Some(e)) => conn.execute(&sql, params![now.to_rfc3339(), e, id])?,
+        (None, None, None) => conn.execute(&sql, params![now.to_rfc3339(), id])?,
+    };
 
     if rows_affected == 0 {
         return Err(AppError::NotFound(format!(
@@ -196,7 +301,7 @@ pub fn search(
 
     let sql = if include_archived {
         r#"
-            SELECT j.id, j.content, j.created_at, j.updated_at, j.is_archived
+            SELECT j.id, j.content, j.title, j.entry_type, j.created_at, j.updated_at, j.is_archived
             FROM journals j
             JOIN journals_fts fts ON j.rowid = fts.rowid
             WHERE journals_fts MATCH ?1
@@ -205,7 +310,7 @@ pub fn search(
         "#
     } else {
         r#"
-            SELECT j.id, j.content, j.created_at, j.updated_at, j.is_archived
+            SELECT j.id, j.content, j.title, j.entry_type, j.created_at, j.updated_at, j.is_archived
             FROM journals j
             JOIN journals_fts fts ON j.rowid = fts.rowid
             WHERE journals_fts MATCH ?1 AND j.is_archived = 0
@@ -217,12 +322,19 @@ pub fn search(
     let mut stmt = conn.prepare(sql)?;
     let journals: Vec<Journal> = stmt
         .query_map(params![escaped_query], |row| {
+            let entry_type_str: Option<String> = row.get(3)?;
             Ok(Journal {
                 id: row.get(0)?,
                 content: row.get(1)?,
-                created_at: parse_datetime(row.get::<_, String>(2)?),
-                updated_at: parse_datetime(row.get::<_, String>(3)?),
-                is_archived: row.get(4)?,
+                title: row.get(2)?,
+                entry_type: entry_type_str
+                    .as_deref()
+                    .unwrap_or_default()
+                    .parse()
+                    .unwrap_or_default(),
+                created_at: parse_datetime(row.get::<_, String>(4)?),
+                updated_at: parse_datetime(row.get::<_, String>(5)?),
+                is_archived: row.get(6)?,
             })
         })?
         .filter_map(|r| {
@@ -232,6 +344,54 @@ pub fn search(
         .collect();
 
     Ok(journals)
+}
+
+/// Get entries that don't have titles (for bulk title generation).
+pub fn list_without_titles(
+    conn: &Connection,
+    limit: Option<i64>,
+) -> Result<Vec<Journal>, AppError> {
+    let limit = limit.unwrap_or(50).min(100);
+
+    let mut stmt = conn.prepare(
+        "SELECT id, content, title, entry_type, created_at, updated_at, is_archived
+         FROM journals
+         WHERE title IS NULL AND content != ''
+         ORDER BY created_at DESC
+         LIMIT ?1",
+    )?;
+
+    let journals: Vec<Journal> = stmt
+        .query_map(params![limit], |row| {
+            let entry_type_str: Option<String> = row.get(3)?;
+            Ok(Journal {
+                id: row.get(0)?,
+                content: row.get(1)?,
+                title: row.get(2)?,
+                entry_type: entry_type_str
+                    .as_deref()
+                    .unwrap_or_default()
+                    .parse()
+                    .unwrap_or_default(),
+                created_at: parse_datetime(row.get::<_, String>(4)?),
+                updated_at: parse_datetime(row.get::<_, String>(5)?),
+                is_archived: row.get(6)?,
+            })
+        })?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    Ok(journals)
+}
+
+/// Update only the title of an entry.
+pub fn update_title(conn: &Connection, id: &str, title: &str) -> Result<(), AppError> {
+    let now = Utc::now();
+    conn.execute(
+        "UPDATE journals SET title = ?1, updated_at = ?2 WHERE id = ?3",
+        params![title, now.to_rfc3339(), id],
+    )?;
+    Ok(())
 }
 
 /// Parse a datetime string into a DateTime<Utc>.
@@ -254,6 +414,12 @@ mod tests {
     use crate::db::schema::run_migrations;
 
     fn setup_test_db() -> Connection {
+        // Register sqlite-vec extension before opening connection
+        unsafe {
+            rusqlite::ffi::sqlite3_auto_extension(Some(std::mem::transmute(
+                sqlite_vec::sqlite3_vec_init as *const (),
+            )));
+        }
         let conn = Connection::open_in_memory().unwrap();
         run_migrations(&conn).unwrap();
         conn
@@ -263,19 +429,37 @@ mod tests {
     fn test_create_and_get() {
         let conn = setup_test_db();
 
-        let result = create(&conn, "Test entry content").unwrap();
+        let result = create(&conn, "Test entry content", None, None).unwrap();
         assert_eq!(result.status, "success");
 
         let journal = get(&conn, &result.id).unwrap();
         assert_eq!(journal.content, "Test entry content");
         assert!(!journal.is_archived);
+        assert_eq!(journal.entry_type, EntryType::Reflection);
+    }
+
+    #[test]
+    fn test_create_with_title_and_type() {
+        let conn = setup_test_db();
+
+        let result = create(
+            &conn,
+            "Morning thoughts",
+            Some("A Fresh Start"),
+            Some("morning"),
+        )
+        .unwrap();
+        let journal = get(&conn, &result.id).unwrap();
+
+        assert_eq!(journal.title, Some("A Fresh Start".to_string()));
+        assert_eq!(journal.entry_type, EntryType::Morning);
     }
 
     #[test]
     fn test_create_empty_content_fails() {
         let conn = setup_test_db();
 
-        let result = create(&conn, "   ");
+        let result = create(&conn, "   ", None, None);
         assert!(result.is_err());
     }
 
@@ -283,9 +467,9 @@ mod tests {
     fn test_list_entries() {
         let conn = setup_test_db();
 
-        create(&conn, "Entry 1").unwrap();
-        create(&conn, "Entry 2").unwrap();
-        create(&conn, "Entry 3").unwrap();
+        create(&conn, "Entry 1", None, None).unwrap();
+        create(&conn, "Entry 2", None, None).unwrap();
+        create(&conn, "Entry 3", None, None).unwrap();
 
         let entries = list(&conn, Some(10), None, None).unwrap();
         assert_eq!(entries.len(), 3);
@@ -295,17 +479,28 @@ mod tests {
     fn test_update_entry() {
         let conn = setup_test_db();
 
-        let result = create(&conn, "Original content").unwrap();
-        let updated = update(&conn, &result.id, "Updated content").unwrap();
+        let result = create(&conn, "Original content", None, None).unwrap();
+        let updated = update(&conn, &result.id, Some("Updated content"), None, None).unwrap();
 
         assert_eq!(updated.content, "Updated content");
+    }
+
+    #[test]
+    fn test_update_title_only() {
+        let conn = setup_test_db();
+
+        let result = create(&conn, "Some content", None, None).unwrap();
+        let updated = update(&conn, &result.id, None, Some("New Title"), None).unwrap();
+
+        assert_eq!(updated.title, Some("New Title".to_string()));
+        assert_eq!(updated.content, "Some content");
     }
 
     #[test]
     fn test_delete_entry() {
         let conn = setup_test_db();
 
-        let result = create(&conn, "To be deleted").unwrap();
+        let result = create(&conn, "To be deleted", None, None).unwrap();
         let deleted = delete(&conn, &result.id).unwrap();
 
         assert!(deleted.success);
@@ -318,7 +513,7 @@ mod tests {
     fn test_archive_entry() {
         let conn = setup_test_db();
 
-        let result = create(&conn, "To be archived").unwrap();
+        let result = create(&conn, "To be archived", None, None).unwrap();
         let archived = archive(&conn, &result.id).unwrap();
 
         assert!(archived.is_archived);
@@ -328,9 +523,9 @@ mod tests {
     fn test_search_entries() {
         let conn = setup_test_db();
 
-        create(&conn, "Today was a good day").unwrap();
-        create(&conn, "Feeling anxious about tomorrow").unwrap();
-        create(&conn, "Good morning sunshine").unwrap();
+        create(&conn, "Today was a good day", None, None).unwrap();
+        create(&conn, "Feeling anxious about tomorrow", None, None).unwrap();
+        create(&conn, "Good morning sunshine", None, None).unwrap();
 
         let results = search(&conn, "good", false).unwrap();
         assert_eq!(results.len(), 2);
@@ -340,8 +535,8 @@ mod tests {
     fn test_search_excludes_archived() {
         let conn = setup_test_db();
 
-        let entry1 = create(&conn, "Today was a good day").unwrap();
-        create(&conn, "Good morning sunshine").unwrap();
+        let entry1 = create(&conn, "Today was a good day", None, None).unwrap();
+        create(&conn, "Good morning sunshine", None, None).unwrap();
         archive(&conn, &entry1.id).unwrap();
 
         // Without archived
@@ -358,8 +553,8 @@ mod tests {
     fn test_list_archived_only() {
         let conn = setup_test_db();
 
-        let entry1 = create(&conn, "Entry 1").unwrap();
-        create(&conn, "Entry 2").unwrap();
+        let entry1 = create(&conn, "Entry 1", None, None).unwrap();
+        create(&conn, "Entry 2", None, None).unwrap();
         archive(&conn, &entry1.id).unwrap();
 
         let archived = list(&conn, None, None, Some(true)).unwrap();

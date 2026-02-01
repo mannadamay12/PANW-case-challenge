@@ -1,35 +1,9 @@
-import { format, isThisMonth, isThisYear, parseISO } from "date-fns";
 import { useEntries, useSearchEntries } from "../../hooks/use-journal";
 import { useUIStore } from "../../stores/ui-store";
 import { EntryCard } from "./EntryCard";
 import { EntryCardSkeleton } from "../ui/Skeleton";
 import { EmptyState } from "../ui/EmptyState";
-import type { JournalEntry } from "../../types/journal";
-
-// Group entries by month
-function groupByMonth(entries: JournalEntry[]) {
-  const groups: Record<string, JournalEntry[]> = {};
-
-  for (const entry of entries) {
-    const date = parseISO(entry.created_at);
-    let key: string;
-
-    if (isThisMonth(date)) {
-      key = "This Month";
-    } else if (isThisYear(date)) {
-      key = format(date, "MMMM");
-    } else {
-      key = format(date, "MMMM yyyy");
-    }
-
-    if (!groups[key]) {
-      groups[key] = [];
-    }
-    groups[key].push(entry);
-  }
-
-  return groups;
-}
+import { groupByRelativeDate } from "../../lib/entry-utils";
 
 export function EntryList() {
   const { selectedEntryId, searchQuery, showArchived } = useUIStore();
@@ -74,17 +48,17 @@ export function EntryList() {
     );
   }
 
-  const grouped = groupByMonth(entries);
+  const grouped = groupByRelativeDate(entries);
 
   return (
-    <div className="space-y-6 p-4">
-      {Object.entries(grouped).map(([month, monthEntries]) => (
-        <div key={month}>
-          <h3 className="text-xs font-medium text-sanctuary-muted uppercase tracking-wider mb-3">
-            {month}
+    <div className="space-y-4">
+      {Object.entries(grouped).map(([dateGroup, groupEntries]) => (
+        <div key={dateGroup}>
+          <h3 className="text-xs font-medium text-sanctuary-muted uppercase tracking-wider mb-1 px-4">
+            {dateGroup}
           </h3>
-          <div className="space-y-3">
-            {monthEntries.map((entry) => (
+          <div>
+            {groupEntries.map((entry) => (
               <EntryCard
                 key={entry.id}
                 entry={entry}

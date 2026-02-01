@@ -1,6 +1,10 @@
+export type EntryType = "morning" | "evening" | "gratitude" | "reflection";
+
 export interface JournalEntry {
   id: string;
   content: string;
+  title: string | null;
+  entry_type: EntryType;
   is_archived: boolean;
   created_at: string;
   updated_at: string;
@@ -24,4 +28,17 @@ export interface ListEntriesParams {
 export interface SearchEntriesParams {
   query: string;
   limit?: number;
+}
+
+export interface CreateEntryParams {
+  content: string;
+  title?: string;
+  entry_type?: EntryType;
+}
+
+export interface UpdateEntryParams {
+  id: string;
+  content?: string;
+  title?: string;
+  entry_type?: EntryType;
 }

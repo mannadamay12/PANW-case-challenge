@@ -7,7 +7,7 @@ const CRISIS_KEYWORDS: &[&str] = &[
     r"\bkill myself\b",
     r"\bend my life\b",
     r"\bwant to die\b",
-    r"\bself[- ]?harm\b",
+    r"\bself[- ]?harm(ing)?\b",
     r"\bhurt myself\b",
     r"\bno reason to live\b",
     r"\bending it all\b",
@@ -36,10 +36,10 @@ pub struct SafetyFilter {
 
 impl SafetyFilter {
     pub fn new() -> Self {
-        let crisis_patterns = RegexSet::new(CRISIS_KEYWORDS)
-            .expect("Failed to compile crisis patterns");
-        let distress_patterns = RegexSet::new(DISTRESS_KEYWORDS)
-            .expect("Failed to compile distress patterns");
+        let crisis_patterns =
+            RegexSet::new(CRISIS_KEYWORDS).expect("Failed to compile crisis patterns");
+        let distress_patterns =
+            RegexSet::new(DISTRESS_KEYWORDS).expect("Failed to compile distress patterns");
 
         Self {
             crisis_patterns,
@@ -126,7 +126,8 @@ If you're having thoughts of hurting yourself, please reach out:
 You don't have to face this alone. A trained counselor is available 24/7."#;
 
 /// Message shown for distress-level content.
-const DISTRESS_MESSAGE: &str = "I hear that you're going through a difficult time. Your feelings are valid.";
+const DISTRESS_MESSAGE: &str =
+    "I hear that you're going through a difficult time. Your feelings are valid.";
 
 /// Support resources appended to responses when distress is detected.
 const SUPPORT_RESOURCES: &str = r#"---

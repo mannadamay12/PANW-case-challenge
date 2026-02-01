@@ -6,12 +6,14 @@ interface EmotionBadgesProps {
   entryId: string;
   className?: string;
   maxBadges?: number;
+  compact?: boolean;
 }
 
 export function EmotionBadges({
   entryId,
   className,
   maxBadges = 3,
+  compact = false,
 }: EmotionBadgesProps) {
   const { data: emotions, isLoading, error } = useEntryEmotions(entryId);
 
@@ -40,7 +42,8 @@ export function EmotionBadges({
         <span
           key={emotion.label}
           className={cn(
-            "inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium capitalize",
+            "inline-flex items-center rounded-full font-medium capitalize",
+            compact ? "px-1.5 py-0 text-[10px]" : "px-2 py-0.5 text-xs",
             getEmotionColor(emotion.label)
           )}
           title={`${emotion.label}: ${Math.round(emotion.score * 100)}%`}

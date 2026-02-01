@@ -20,9 +20,14 @@ pub use error::AppError as Error;
 
 /// Create a new journal entry.
 #[tauri::command]
-fn create_entry(pool: State<'_, DbPool>, content: String) -> Result<CreateEntryResponse, AppError> {
+fn create_entry(
+    pool: State<'_, DbPool>,
+    content: String,
+    title: Option<String>,
+    entry_type: Option<String>,
+) -> Result<CreateEntryResponse, AppError> {
     let conn = pool.get()?;
-    journals::create(&conn, &content)
+    journals::create(&conn, &content, title.as_deref(), entry_type.as_deref())
 }
 
 /// Get a single journal entry by ID.
@@ -44,11 +49,23 @@ fn list_entries(
     journals::list(&conn, limit, offset, archived)
 }
 
-/// Update a journal entry's content.
+/// Update a journal entry's content, title, or entry type.
 #[tauri::command]
-fn update_entry(pool: State<'_, DbPool>, id: String, content: String) -> Result<Journal, AppError> {
+fn update_entry(
+    pool: State<'_, DbPool>,
+    id: String,
+    content: Option<String>,
+    title: Option<String>,
+    entry_type: Option<String>,
+) -> Result<Journal, AppError> {
     let conn = pool.get()?;
-    journals::update(&conn, &id, &content)
+    journals::update(
+        &conn,
+        &id,
+        content.as_deref(),
+        title.as_deref(),
+        entry_type.as_deref(),
+    )
 }
 
 /// Delete a journal entry.
@@ -231,6 +248,59 @@ fn check_message_safety(llm: State<'_, LlmState>, text: String) -> SafetyResult 
     llm.safety.check(&text)
 }
 
+/// Generate a title for a journal entry using the LLM.
+#[tauri::command]
+async fn generate_title(llm: State<'_, LlmState>, content: String) -> Result<String, AppError> {
+    llm.ollama.generate_title(&content).await
+}
+
+/// Generate titles for all entries that don't have one.
+/// Returns the number of titles generated.
+#[tauri::command]
+async fn generate_missing_titles(
+    pool: State<'_, DbPool>,
+    llm: State<'_, LlmState>,
+) -> Result<u32, AppError> {
+    // Get entries without titles
+    let entries = {
+        let conn = pool.get()?;
+        journals::list_without_titles(&conn, Some(50))?
+    };
+
+    if entries.is_empty() {
+        return Ok(0);
+    }
+
+    log::info!("Generating titles for {} entries", entries.len());
+    let mut count = 0u32;
+
+    for entry in entries {
+        // Skip very short entries
+        if entry.content.trim().len() < 20 {
+            continue;
+        }
+
+        match llm.ollama.generate_title(&entry.content).await {
+            Ok(title) if !title.is_empty() => {
+                let conn = pool.get()?;
+                if journals::update_title(&conn, &entry.id, &title).is_ok() {
+                    log::info!("Generated title for entry {}: {}", entry.id, title);
+                    count += 1;
+                }
+            }
+            Ok(_) => {
+                log::warn!("Empty title generated for entry {}", entry.id);
+            }
+            Err(e) => {
+                log::error!("Failed to generate title for entry {}: {}", entry.id, e);
+                // Continue with other entries even if one fails
+            }
+        }
+    }
+
+    Ok(count)
+}
+
 /// Stream a chat response from the LLM with optional RAG context.
 /// Emits 'chat-chunk' events for each token and 'chat-done' or 'chat-error' on completion.
 #[tauri::command]
@@ -249,24 +319,22 @@ async fn chat_stream(
     if !safety_result.safe {
         // Emit the intervention message as a "response"
         if let Some(intervention) = &safety_result.intervention {
-            let _ = app.emit("chat-chunk", ChatChunkEvent {
-                chunk: intervention.clone(),
-                done: false,
-            });
+            let _ = app.emit(
+                "chat-chunk",
+                ChatChunkEvent {
+                    chunk: intervention.clone(),
+                    done: false,
+                },
+            );
         }
         let _ = app.emit("chat-done", ());
         return Ok(());
     }
 
     // Get RAG context from journal entries
-    let context = llm::chat::get_rag_context(
-        pool.inner(),
-        ml.inner(),
-        &message,
-        context_limit,
-    )
-    .await
-    .ok();
+    let context = llm::chat::get_rag_context(pool.inner(), ml.inner(), &message, context_limit)
+        .await
+        .ok();
 
     // Build the prompt with context
     let chat_service = llm::ChatService::new(llm.ollama.clone(), llm.safety.clone());
@@ -283,21 +351,28 @@ async fn chat_stream(
                     Ok(chunk) => {
                         if let Some(content) = &chunk.message {
                             full_response.push_str(content);
-                            let _ = app.emit("chat-chunk", ChatChunkEvent {
-                                chunk: content.clone(),
-                                done: false,
-                            });
+                            let _ = app.emit(
+                                "chat-chunk",
+                                ChatChunkEvent {
+                                    chunk: content.clone(),
+                                    done: false,
+                                },
+                            );
                         }
 
                         if chunk.done {
                             // Augment with safety resources if distress was detected
-                            let augmented = chat_service.augment_with_safety(&full_response, &safety_result);
+                            let augmented =
+                                chat_service.augment_with_safety(&full_response, &safety_result);
                             if augmented != full_response {
                                 let suffix = augmented.strip_prefix(&full_response).unwrap_or("");
-                                let _ = app.emit("chat-chunk", ChatChunkEvent {
-                                    chunk: suffix.to_string(),
-                                    done: false,
-                                });
+                                let _ = app.emit(
+                                    "chat-chunk",
+                                    ChatChunkEvent {
+                                        chunk: suffix.to_string(),
+                                        done: false,
+                                    },
+                                );
                             }
                             let _ = app.emit("chat-done", ());
                             break;
@@ -305,9 +380,12 @@ async fn chat_stream(
                     }
                     Err(e) => {
                         log::error!("Chat stream error: {}", e);
-                        let _ = app.emit("chat-error", ChatErrorEvent {
-                            message: e.to_string(),
-                        });
+                        let _ = app.emit(
+                            "chat-error",
+                            ChatErrorEvent {
+                                message: e.to_string(),
+                            },
+                        );
                         break;
                     }
                 }
@@ -315,9 +393,12 @@ async fn chat_stream(
         }
         Err(e) => {
             log::error!("Failed to start chat stream: {}", e);
-            let _ = app.emit("chat-error", ChatErrorEvent {
-                message: e.to_string(),
-            });
+            let _ = app.emit(
+                "chat-error",
+                ChatErrorEvent {
+                    message: e.to_string(),
+                },
+            );
         }
     }
 
@@ -379,6 +460,8 @@ pub fn run() {
             generate_entry_embedding,
             check_ollama_status,
             check_message_safety,
+            generate_title,
+            generate_missing_titles,
             chat_stream,
         ])
         .run(tauri::generate_context!())

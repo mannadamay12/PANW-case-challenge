@@ -1,4 +1,3 @@
-import { format } from "date-fns";
 import { Archive, MoreHorizontal, Trash2 } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import type { JournalEntry } from "../../types/journal";
@@ -6,6 +5,8 @@ import { useArchiveEntry } from "../../hooks/use-journal";
 import { useUIStore } from "../../stores/ui-store";
 import { cn } from "../../lib/utils";
 import { EmotionBadges } from "./EmotionBadges";
+import { EntryTypeBadge } from "./EntryTypeSelector";
+import { deriveTitle, formatEntryDate } from "../../lib/entry-utils";
 
 interface EntryCardProps {
   entry: JournalEntry;
@@ -18,7 +19,6 @@ export function EntryCard({ entry, isSelected }: EntryCardProps) {
   const [showMenu, setShowMenu] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  // Close menu on outside click
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
@@ -36,87 +36,105 @@ export function EntryCard({ entry, isSelected }: EntryCardProps) {
     openEditor(entry.id);
   };
 
-  // Extract preview text (first ~100 chars, first line)
-  const previewText = entry.content.split("\n")[0].slice(0, 100);
-  const hasMore = entry.content.length > 100 || entry.content.includes("\n");
+  // Use AI-generated title or derive from content
+  const title = entry.title || deriveTitle(entry.content);
+
+  // Get preview text (skip first line if it matches the derived title)
+  const firstLine = entry.content.split("\n")[0].trim();
+  const previewLines = entry.content.split("\n");
+  const previewContent =
+    !entry.title && firstLine === title
+      ? previewLines.slice(1).join("\n").trim()
+      : entry.content;
+  const previewText = previewContent.slice(0, 80);
+  const hasMore = previewContent.length > 80;
 
   return (
     <div
       onClick={handleClick}
       className={cn(
-        "group relative rounded-lg border bg-sanctuary-card p-4 cursor-pointer transition-all",
-        "hover:shadow-md hover:border-stone-300",
-        isSelected
-          ? "border-sanctuary-accent ring-1 ring-sanctuary-accent"
-          : "border-sanctuary-border",
+        "group relative px-4 py-3 cursor-pointer transition-colors",
+        isSelected ? "bg-stone-200" : "hover:bg-stone-100",
         entry.is_archived && "opacity-60"
       )}
     >
-      {/* Date */}
-      <time className="text-xs text-sanctuary-muted">
-        {format(new Date(entry.created_at), "EEE, MMM d")}
-      </time>
+      {/* Title */}
+      <div className="flex items-start justify-between gap-2">
+        <h4 className="font-semibold text-sm text-sanctuary-text line-clamp-1">
+          {title}
+        </h4>
 
-      {/* Content preview */}
-      <p className="mt-2 font-serif text-sanctuary-text line-clamp-3">
-        {previewText}
-        {hasMore && "..."}
-      </p>
-
-      {/* Emotion badges */}
-      <EmotionBadges entryId={entry.id} className="mt-2" />
-
-      {/* Actions menu */}
-      <div
-        ref={menuRef}
-        className="absolute top-3 right-3"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <button
-          onClick={() => setShowMenu(!showMenu)}
-          className={cn(
-            "p-1.5 rounded text-sanctuary-muted transition-colors",
-            "opacity-0 group-hover:opacity-100 focus:opacity-100",
-            "hover:bg-stone-100 hover:text-sanctuary-text"
-          )}
+        {/* Actions menu */}
+        <div
+          ref={menuRef}
+          onClick={(e) => e.stopPropagation()}
+          className="flex-shrink-0"
         >
-          <MoreHorizontal className="h-4 w-4" />
-        </button>
+          <button
+            onClick={() => setShowMenu(!showMenu)}
+            className={cn(
+              "p-1 rounded text-sanctuary-muted transition-colors",
+              "opacity-0 group-hover:opacity-100 focus:opacity-100",
+              "hover:bg-stone-200 hover:text-sanctuary-text"
+            )}
+          >
+            <MoreHorizontal className="h-4 w-4" />
+          </button>
 
-        {showMenu && (
-          <div className="absolute right-0 top-8 z-10 w-36 rounded-lg border border-sanctuary-border bg-sanctuary-card py-1 shadow-lg">
-            {!entry.is_archived && (
+          {showMenu && (
+            <div className="absolute right-4 top-10 z-10 w-36 rounded-lg border border-sanctuary-border bg-sanctuary-card py-1 shadow-lg">
+              {!entry.is_archived && (
+                <button
+                  onClick={() => {
+                    setShowMenu(false);
+                    archiveMutation.mutate(entry.id);
+                  }}
+                  className="flex w-full items-center gap-2 px-3 py-2 text-sm text-sanctuary-muted hover:bg-stone-100 hover:text-sanctuary-text"
+                >
+                  <Archive className="h-4 w-4" />
+                  Archive
+                </button>
+              )}
               <button
                 onClick={() => {
                   setShowMenu(false);
-                  archiveMutation.mutate(entry.id);
+                  setDeleteConfirmId(entry.id);
                 }}
-                className="flex w-full items-center gap-2 px-3 py-2 text-sm text-sanctuary-muted hover:bg-stone-100 hover:text-sanctuary-text"
+                className="flex w-full items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50"
               >
-                <Archive className="h-4 w-4" />
-                Archive
+                <Trash2 className="h-4 w-4" />
+                Delete
               </button>
-            )}
-            <button
-              onClick={() => {
-                setShowMenu(false);
-                setDeleteConfirmId(entry.id);
-              }}
-              className="flex w-full items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50"
-            >
-              <Trash2 className="h-4 w-4" />
-              Delete
-            </button>
-          </div>
-        )}
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* Archived badge */}
-      {entry.is_archived && (
-        <span className="absolute top-3 right-12 text-xs text-sanctuary-muted bg-stone-100 px-2 py-0.5 rounded">
-          Archived
-        </span>
+      {/* Content preview */}
+      {previewText && (
+        <p className="mt-1 text-sm text-sanctuary-muted line-clamp-2">
+          {previewText}
+          {hasMore && "..."}
+        </p>
       )}
+
+      {/* Emotions and metadata row */}
+      <div className="mt-2 flex items-center gap-2 flex-wrap">
+        <EmotionBadges entryId={entry.id} compact />
+        <EntryTypeBadge type={entry.entry_type} />
+      </div>
+
+      {/* Date and archived badge */}
+      <div className="mt-1 flex items-center gap-2">
+        <time className="text-xs text-sanctuary-muted">
+          {formatEntryDate(entry.created_at)}
+        </time>
+        {entry.is_archived && (
+          <span className="text-xs text-sanctuary-muted bg-stone-100 px-1.5 py-0.5 rounded">
+            Archived
+          </span>
+        )}
+      </div>
     </div>
   );
 }

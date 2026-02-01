@@ -67,8 +67,10 @@ impl ChatService {
     pub async fn chat_stream(
         &self,
         messages: Vec<ChatMessage>,
-    ) -> Result<impl futures::Stream<Item = Result<super::ollama::ChatStreamChunk, AppError>>, AppError>
-    {
+    ) -> Result<
+        impl futures::Stream<Item = Result<super::ollama::ChatStreamChunk, AppError>>,
+        AppError,
+    > {
         self.ollama.chat_stream(messages).await
     }
 }
