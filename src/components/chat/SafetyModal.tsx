@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { Heart, Phone, X } from "lucide-react";
+import { Heart, Phone, X } from "@phosphor-icons/react";
 import { Button } from "../ui/Button";
 import { useChatStore } from "../../stores/chat-store";
 import { cn } from "../../lib/utils";

@@ -41,6 +41,7 @@ export interface UpdateEntryParams {
   content?: string;
   title?: string;
   entry_type?: EntryType;
+  created_at?: string;
 }
 
 export interface EntryImage {

@@ -10,7 +10,7 @@ import {
   isAfter,
   parseISO,
 } from "date-fns";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { CaretLeft, CaretRight } from "@phosphor-icons/react";
 import { useState } from "react";
 import { Skeleton } from "../ui/Skeleton";
 import { cn } from "../../lib/utils";
@@ -135,7 +135,7 @@ export function MonthlyCalendar({
             onClick={handlePrevMonth}
             className="p-1 rounded-md hover:bg-sanctuary-hover text-sanctuary-muted transition-colors"
           >
-            <ChevronLeft className="h-5 w-5" />
+            <CaretLeft className="h-5 w-5" />
           </button>
           <button
             onClick={handleNextMonth}
@@ -147,7 +147,7 @@ export function MonthlyCalendar({
                 : "hover:bg-sanctuary-hover text-sanctuary-muted"
             )}
           >
-            <ChevronRight className="h-5 w-5" />
+            <CaretRight className="h-5 w-5" />
           </button>
         </div>
       </div>

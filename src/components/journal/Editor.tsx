@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import TextareaAutosize from "react-textarea-autosize";
-import { AlertCircle, RotateCcw, Image } from "lucide-react";
+import { WarningCircle, ArrowCounterClockwise, Image } from "@phosphor-icons/react";
 import { invoke } from "@tauri-apps/api/core";
 import {
   useEntry,
@@ -8,6 +8,7 @@ import {
   useCreateEntry,
   useArchiveEntry,
   useGenerateTitle,
+  journalKeys,
 } from "../../hooks/use-journal";
 import { useUIStore } from "../../stores/ui-store";
 import {
@@ -16,6 +17,8 @@ import {
 } from "../../hooks/use-debounced-save";
 import { useSaveOnClose } from "../../hooks/use-save-on-close";
 import { useEmbeddingOnSave } from "../../hooks/use-ml";
+import { useUndoHistory } from "../../hooks/use-undo-history";
+import { useQueryClient } from "@tanstack/react-query";
 import { useImageUpload } from "../../hooks/use-image-upload";
 import { Button } from "../ui/Button";
 import { Skeleton } from "../ui/Skeleton";
@@ -50,9 +53,11 @@ export function Editor() {
     clearPendingTemplate,
     editorFontSize,
     showWordCount,
+    showTitle,
     setEditorContext,
   } = useUIStore();
 
+  const queryClient = useQueryClient();
   const { data: entry, isLoading } = useEntry(selectedEntryId);
   const updateMutation = useUpdateEntry();
   const createMutation = useCreateEntry();
@@ -60,7 +65,15 @@ export function Editor() {
   const generateTitleMutation = useGenerateTitle();
   const { triggerEmbedding } = useEmbeddingOnSave();
 
-  const [content, setContent] = useState("");
+  // Use custom undo history for content
+  const {
+    value: content,
+    setValue: setContent,
+    undo,
+    redo,
+    reset: resetHistory,
+  } = useUndoHistory("", { maxHistory: 50, debounceMs: 300 });
+
   const [title, setTitle] = useState("");
   const [entryType, setEntryType] = useState<EntryType>("reflection");
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -148,24 +161,12 @@ export function Editor() {
     onFlush: debouncedSave.flushNow,
   });
 
-  // Keyboard shortcut: Cmd+S / Ctrl+S to save
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === "s") {
-        e.preventDefault();
-        debouncedSave.flushNow();
-      }
-    };
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [debouncedSave]);
-
   // Initialize when opening an entry
   useEffect(() => {
     if (entry) {
       if (initializedForRef.current !== entry.id) {
         debouncedSave.flushNow();
-        setContent(entry.content);
+        resetHistory(entry.content);
         setTitle(entry.title || "");
         setEntryType(entry.entry_type);
         initializedForRef.current = entry.id;
@@ -175,7 +176,7 @@ export function Editor() {
       if (initializedForRef.current !== "new") {
         debouncedSave.flushNow();
         // Use pending template data if available
-        setContent(pendingTemplateText || "");
+        resetHistory(pendingTemplateText || "");
         setTitle(pendingTemplateTitle || "");
         setEntryType("reflection");
         initializedForRef.current = "new";
@@ -186,7 +187,7 @@ export function Editor() {
         }
       }
     }
-  }, [entry, isNewEntry, debouncedSave, pendingTemplateText, pendingTemplateTitle, clearPendingTemplate]);
+  }, [entry, isNewEntry, debouncedSave, pendingTemplateText, pendingTemplateTitle, clearPendingTemplate, resetHistory]);
 
   useEffect(() => {
     if (!selectedEntryId && !isNewEntry) {
@@ -205,13 +206,41 @@ export function Editor() {
     [selectedEntryId, isNewEntry, debouncedSave]
   );
 
+  // Keyboard shortcuts: Cmd+S to save, Cmd+Z/Cmd+Shift+Z for undo/redo
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.metaKey || e.ctrlKey) {
+        switch (e.key.toLowerCase()) {
+          case "s":
+            e.preventDefault();
+            debouncedSave.flushNow();
+            break;
+          case "z":
+            e.preventDefault();
+            if (e.shiftKey) {
+              redo();
+            } else {
+              undo();
+            }
+            break;
+          case "y":
+            e.preventDefault();
+            redo();
+            break;
+        }
+      }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [debouncedSave, undo, redo]);
+
   const handleContentChange = useCallback(
     (value: string) => {
       setContent(value);
       setSaveError(null);
       scheduleSave(value, title, entryType);
     },
-    [title, entryType, scheduleSave]
+    [title, entryType, scheduleSave, setContent]
   );
 
   // Insert image markdown at cursor position
@@ -240,7 +269,7 @@ export function Editor() {
         scheduleSave(newContent, title, entryType);
       }
     },
-    [content, title, entryType, scheduleSave]
+    [content, title, entryType, scheduleSave, setContent]
   );
 
   const { uploadImage, uploadFromClipboard, isUploading } = useImageUpload({
@@ -324,9 +353,9 @@ export function Editor() {
         const image = images.find((img) => img.relative_path === relativePath);
         if (image) {
           await invoke("delete_entry_image", { imageId: image.id });
-          // Remove the markdown from content
+          // Remove the markdown from content (handle optional width/height)
           const regex = new RegExp(
-            `\\n?!\\[[^\\]]*\\]\\(${relativePath.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\)\\n?`,
+            `\\n?!\\[[^\\]|]*(?:\\|\\d+(?:x\\d+)?)?\\]\\(${relativePath.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\)\\n?`,
             "g"
           );
           const newContent = content.replace(regex, "\n");
@@ -338,7 +367,26 @@ export function Editor() {
         console.error("Failed to delete image:", err);
       }
     },
-    [selectedEntryId, content, title, entryType, scheduleSave]
+    [selectedEntryId, content, title, entryType, scheduleSave, setContent]
+  );
+
+  // Handle image resize - update markdown with new dimensions
+  const handleImageResize = useCallback(
+    (relativePath: string, width: number) => {
+      // Match both formats: ![alt](path) and ![alt|width](path) or ![alt|widthxheight](path)
+      const escapedPath = relativePath.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const regex = new RegExp(
+        `!\\[([^\\]|]*)(?:\\|\\d+(?:x\\d+)?)?\\]\\(${escapedPath}\\)`,
+        "g"
+      );
+      const newContent = content.replace(regex, `![$1|${width}](${relativePath})`);
+      if (newContent !== content) {
+        setContent(newContent);
+        setSaveError(null);
+        scheduleSave(newContent, title, entryType);
+      }
+    },
+    [content, title, entryType, scheduleSave, setContent]
   );
 
   const handleTitleChange = useCallback(
@@ -348,15 +396,6 @@ export function Editor() {
       scheduleSave(content, value, entryType);
     },
     [content, entryType, scheduleSave]
-  );
-
-  const handleEntryTypeChange = useCallback(
-    (type: EntryType) => {
-      setEntryType(type);
-      setSaveError(null);
-      scheduleSave(content, title, type);
-    },
-    [content, title, scheduleSave]
   );
 
   const handleRetry = useCallback(async () => {
@@ -382,21 +421,44 @@ export function Editor() {
     }
   }, [selectedEntryId, setDeleteConfirmId]);
 
+  const handleDateChange = useCallback(
+    (date: string) => {
+      console.log("handleDateChange called:", { selectedEntryId, date });
+      if (selectedEntryId) {
+        updateMutation.mutate(
+          { id: selectedEntryId, created_at: date },
+          {
+            onSuccess: (data) => {
+              console.log("Date update success:", data);
+              queryClient.invalidateQueries({ queryKey: journalKeys.detail(selectedEntryId) });
+              queryClient.invalidateQueries({ queryKey: journalKeys.lists() });
+            },
+            onError: (error) => {
+              console.error("Failed to update date:", error);
+              // TODO: Show error to user via toast/alert
+            },
+          }
+        );
+      }
+    },
+    [selectedEntryId, updateMutation, queryClient]
+  );
+
   // Use refs for callbacks to avoid infinite loops in the context effect
-  const handleEntryTypeChangeRef = useRef(handleEntryTypeChange);
-  handleEntryTypeChangeRef.current = handleEntryTypeChange;
   const handleArchiveRef = useRef(handleArchive);
   handleArchiveRef.current = handleArchive;
   const handleDeleteRef = useRef(handleDelete);
   handleDeleteRef.current = handleDelete;
+  const handleDateChangeRef = useRef(handleDateChange);
+  handleDateChangeRef.current = handleDateChange;
 
   // Update editor context for titlebar
   useEffect(() => {
     setEditorContext({
       entryId: selectedEntryId,
-      entryType,
       isArchived: entry?.is_archived ?? false,
-      onChangeEntryType: (type: EntryType) => handleEntryTypeChangeRef.current(type),
+      entryDate: entry?.created_at ?? null,
+      onChangeDate: (date: string) => handleDateChangeRef.current(date),
       onArchive: () => handleArchiveRef.current(),
       onDelete: () => handleDeleteRef.current(),
     });
@@ -404,7 +466,7 @@ export function Editor() {
     return () => {
       setEditorContext(null);
     };
-  }, [selectedEntryId, entryType, entry?.is_archived, setEditorContext]);
+  }, [selectedEntryId, entry?.is_archived, entry?.created_at, setEditorContext]);
 
   if (isLoading && selectedEntryId) {
     return (
@@ -457,7 +519,7 @@ export function Editor() {
             {/* Save error inline */}
             {saveError && (
               <div className="mb-4 flex items-center gap-2 text-red-600 text-sm">
-                <AlertCircle className="h-4 w-4" />
+                <WarningCircle className="h-4 w-4" />
                 <span>{saveError}</span>
                 <Button
                   variant="ghost"
@@ -465,26 +527,28 @@ export function Editor() {
                   onClick={handleRetry}
                   className="text-red-600 hover:text-red-700"
                 >
-                  <RotateCcw className="h-3 w-3 mr-1" />
+                  <ArrowCounterClockwise className="h-3 w-3 mr-1" />
                   Retry
                 </Button>
               </div>
             )}
 
             {/* Title field */}
-            <input
-              type="text"
-              value={title}
-              onChange={(e) => handleTitleChange(e.target.value)}
-              placeholder="Title"
-              className={cn(
-                "w-full border-0 bg-transparent mb-4",
-                "font-serif font-semibold text-sanctuary-text",
-                "placeholder:text-sanctuary-muted/50",
-                "focus:outline-none",
-                titleFontSizeClasses[editorFontSize]
-              )}
-            />
+            {showTitle && (
+              <input
+                type="text"
+                value={title}
+                onChange={(e) => handleTitleChange(e.target.value)}
+                placeholder="Title"
+                className={cn(
+                  "w-full border-0 bg-transparent mb-4",
+                  "font-serif font-semibold text-sanctuary-text",
+                  "placeholder:text-sanctuary-muted/50",
+                  "focus:outline-none",
+                  titleFontSizeClasses[editorFontSize]
+                )}
+              />
+            )}
 
             {/* Content with inline image rendering */}
             <EditorContent
@@ -492,6 +556,7 @@ export function Editor() {
               onChange={handleContentChange}
               onPaste={handlePaste}
               onDeleteImage={handleDeleteImage}
+              onResizeImage={handleImageResize}
               textareaRef={textareaRef}
               fontSize={editorFontSize}
             />
@@ -505,7 +570,7 @@ export function Editor() {
 
             {imageError && (
               <div className="mt-4 flex items-center gap-2 text-red-600 text-sm">
-                <AlertCircle className="h-4 w-4" />
+                <WarningCircle className="h-4 w-4" />
                 <span>{imageError}</span>
               </div>
             )}
@@ -526,16 +591,32 @@ export function Editor() {
   );
 }
 
-// Regex to match markdown image syntax: ![alt](path)
-// Non-global version for testing presence, global version for iteration
-const HAS_IMAGE_REGEX = /!\[([^\]]*)\]\(([^)]+)\)/;
-const IMAGE_REGEX = /!\[([^\]]*)\]\(([^)]+)\)/g;
+// Extended regex to match markdown image syntax with optional width: ![alt](path) or ![alt|width](path)
+// Captures: [1]=alt, [2]=width?, [3]=height?, [4]=path
+const HAS_IMAGE_REGEX = /!\[([^\]|]*?)(?:\|(\d+)(?:x(\d+))?)?\]\(([^)]+)\)/;
+const IMAGE_REGEX = /!\[([^\]|]*?)(?:\|(\d+)(?:x(\d+))?)?\]\(([^)]+)\)/g;
+
+interface ImageSegment {
+  type: "image";
+  path: string;
+  alt?: string;
+  width?: number;
+  height?: number;
+}
+
+interface TextSegment {
+  type: "text";
+  content: string;
+}
+
+type Segment = ImageSegment | TextSegment;
 
 interface EditorContentProps {
   content: string;
   onChange: (value: string) => void;
   onPaste: (e: React.ClipboardEvent) => void;
   onDeleteImage: (relativePath: string) => void;
+  onResizeImage: (relativePath: string, width: number) => void;
   textareaRef: React.RefObject<HTMLTextAreaElement | null>;
   fontSize: "default" | "medium" | "large";
 }
@@ -545,6 +626,7 @@ function EditorContent({
   onChange,
   onPaste,
   onDeleteImage,
+  onResizeImage,
   textareaRef,
   fontSize,
 }: EditorContentProps) {
@@ -575,7 +657,7 @@ function EditorContent({
 
   // Content has images - render mixed content
   // Split content into segments of text and images
-  const segments: Array<{ type: "text" | "image"; content: string; alt?: string }> = [];
+  const segments: Segment[] = [];
   let lastIndex = 0;
   let match;
 
@@ -589,11 +671,13 @@ function EditorContent({
         content: content.slice(lastIndex, match.index),
       });
     }
-    // Add the image
+    // Add the image with parsed dimensions
     segments.push({
       type: "image",
-      content: match[2], // path
+      path: match[4], // path is now capture group 4
       alt: match[1], // alt text
+      width: match[2] ? parseInt(match[2], 10) : undefined,
+      height: match[3] ? parseInt(match[3], 10) : undefined,
     });
     lastIndex = match.index + match[0].length;
   }
@@ -606,16 +690,34 @@ function EditorContent({
     });
   }
 
+  // Helper to reconstruct content from segments
+  const reconstructContent = (updatedSegments: Segment[]): string => {
+    return updatedSegments
+      .map((s) => {
+        if (s.type === "image") {
+          const sizeStr = s.width
+            ? `|${s.width}${s.height ? `x${s.height}` : ""}`
+            : "";
+          return `![${s.alt || ""}${sizeStr}](${s.path})`;
+        }
+        return s.content;
+      })
+      .join("");
+  };
+
   return (
     <div className="space-y-2">
       {segments.map((segment, index) => {
         if (segment.type === "image") {
           return (
             <InlineImage
-              key={`${segment.content}-${index}`}
-              relativePath={segment.content}
+              key={`${segment.path}-${index}`}
+              relativePath={segment.path}
               alt={segment.alt}
-              onDelete={() => onDeleteImage(segment.content)}
+              width={segment.width}
+              height={segment.height}
+              onDelete={() => onDeleteImage(segment.path)}
+              onResize={(width) => onResizeImage(segment.path, width)}
             />
           );
         }
@@ -633,11 +735,7 @@ function EditorContent({
               // Reconstruct full content with updated segment
               const newSegments = [...segments];
               newSegments[index] = { type: "text", content: e.target.value };
-              const newContent = newSegments
-                .map((s) =>
-                  s.type === "image" ? `![${s.alt || ""}](${s.content})` : s.content
-                )
-                .join("");
+              const newContent = reconstructContent(newSegments);
               onChange(newContent);
             }}
             onPaste={onPaste}

@@ -93,10 +93,11 @@ export function useCreateEntry() {
       // Support both legacy string param and new object param
       const { content, title, entry_type } =
         typeof params === "string" ? { content: params, title: undefined, entry_type: undefined } : params;
+      // Tauri v2 converts camelCase (JS) to snake_case (Rust) automatically
       return invoke<CreateEntryResponse>("create_entry", {
         content,
         title,
-        entry_type,
+        entryType: entry_type,
       });
     },
     onSuccess: () => {
@@ -111,15 +112,17 @@ export function useUpdateEntry() {
 
   return useMutation({
     mutationFn: async (params: UpdateEntryParams) => {
+      // Tauri v2 converts camelCase (JS) to snake_case (Rust) automatically
       return invoke<JournalEntry>("update_entry", {
         id: params.id,
         content: params.content,
         title: params.title,
-        entry_type: params.entry_type,
+        entryType: params.entry_type,
+        createdAt: params.created_at,
       });
     },
     onMutate: async (params) => {
-      const { id, content, title, entry_type } = params;
+      const { id, content, title, entry_type, created_at } = params;
       // Cancel outgoing refetches
       await queryClient.cancelQueries({ queryKey: journalKeys.detail(id) });
 
@@ -135,6 +138,7 @@ export function useUpdateEntry() {
           ...(content !== undefined && { content }),
           ...(title !== undefined && { title }),
           ...(entry_type !== undefined && { entry_type }),
+          ...(created_at !== undefined && { created_at }),
           updated_at: new Date().toISOString(),
         });
       }
@@ -176,6 +180,21 @@ export function useArchiveEntry() {
   return useMutation({
     mutationFn: async (id: string) => {
       return invoke<JournalEntry>("archive_entry", { id });
+    },
+    onSuccess: (_data, id) => {
+      queryClient.invalidateQueries({ queryKey: journalKeys.detail(id) });
+      queryClient.invalidateQueries({ queryKey: journalKeys.lists() });
+    },
+  });
+}
+
+// Unarchive entry mutation
+export function useUnarchiveEntry() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      return invoke<JournalEntry>("unarchive_entry", { id });
     },
     onSuccess: (_data, id) => {
       queryClient.invalidateQueries({ queryKey: journalKeys.detail(id) });

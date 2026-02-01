@@ -380,11 +380,11 @@ mod tests {
     fn test_list_templates() {
         let conn = setup_test_db();
 
-        // 8 default templates are seeded by migrations
+        // 12 default templates are seeded by migrations
         let initial_count = list(&conn).unwrap().len();
         assert!(
-            initial_count >= 8,
-            "Should have at least 8 default templates"
+            initial_count >= 12,
+            "Should have at least 12 default templates"
         );
 
         create(&conn, "T1", "P1", "Text1", None, "growth").unwrap();

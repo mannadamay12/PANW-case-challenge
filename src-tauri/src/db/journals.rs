@@ -168,13 +168,14 @@ pub fn list(
     Ok(journals)
 }
 
-/// Update a journal entry's content and/or title.
+/// Update a journal entry's content, title, entry type, and/or created_at date.
 pub fn update(
     conn: &Connection,
     id: &str,
     content: Option<&str>,
     title: Option<&str>,
     entry_type: Option<&str>,
+    created_at: Option<&str>,
 ) -> Result<Journal, AppError> {
     // Validate content if provided
     if let Some(c) = content {
@@ -185,53 +186,65 @@ pub fn update(
         }
     }
 
+    // Validate created_at if provided (must be valid RFC3339)
+    if let Some(ca) = created_at {
+        DateTime::parse_from_rfc3339(ca).map_err(|_| {
+            AppError::InvalidInput(format!("Invalid created_at date format: {}", ca))
+        })?;
+    }
+
     let now = Utc::now();
 
     // Build dynamic update query based on provided fields
-    let mut updates = vec!["updated_at = ?1"];
-    let mut param_idx = 2;
+    let mut updates = Vec::new();
+    let mut params_vec: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
 
-    if content.is_some() {
-        updates.push("content = ?2");
-        param_idx = 3;
+    updates.push("updated_at = ?".to_string());
+    params_vec.push(Box::new(now.to_rfc3339()));
+
+    if let Some(c) = content {
+        updates.push("content = ?".to_string());
+        params_vec.push(Box::new(c.to_string()));
     }
-    if title.is_some() {
-        updates.push(if param_idx == 2 {
-            "title = ?2"
-        } else {
-            "title = ?3"
-        });
-        param_idx += 1;
+    if let Some(t) = title {
+        updates.push("title = ?".to_string());
+        params_vec.push(Box::new(t.to_string()));
     }
-    if entry_type.is_some() {
-        let placeholder = match param_idx {
-            2 => "entry_type = ?2",
-            3 => "entry_type = ?3",
-            _ => "entry_type = ?4",
-        };
-        updates.push(placeholder);
-        param_idx += 1;
+    if let Some(e) = entry_type {
+        updates.push("entry_type = ?".to_string());
+        params_vec.push(Box::new(e.to_string()));
     }
+    if let Some(ca) = created_at {
+        updates.push("created_at = ?".to_string());
+        params_vec.push(Box::new(ca.to_string()));
+    }
+
+    params_vec.push(Box::new(id.to_string()));
+
+    // Renumber placeholders
+    let numbered_updates: Vec<String> = updates
+        .iter()
+        .enumerate()
+        .map(|(i, u)| u.replacen("?", &format!("?{}", i + 1), 1))
+        .collect();
 
     let sql = format!(
         "UPDATE journals SET {} WHERE id = ?{}",
-        updates.join(", "),
-        param_idx
+        numbered_updates.join(", "),
+        params_vec.len()
     );
 
-    // Execute with the appropriate parameters
-    let rows_affected = match (content, title, entry_type) {
-        (Some(c), Some(t), Some(e)) => {
-            conn.execute(&sql, params![now.to_rfc3339(), c, t, e, id])?
-        }
-        (Some(c), Some(t), None) => conn.execute(&sql, params![now.to_rfc3339(), c, t, id])?,
-        (Some(c), None, Some(e)) => conn.execute(&sql, params![now.to_rfc3339(), c, e, id])?,
-        (Some(c), None, None) => conn.execute(&sql, params![now.to_rfc3339(), c, id])?,
-        (None, Some(t), Some(e)) => conn.execute(&sql, params![now.to_rfc3339(), t, e, id])?,
-        (None, Some(t), None) => conn.execute(&sql, params![now.to_rfc3339(), t, id])?,
-        (None, None, Some(e)) => conn.execute(&sql, params![now.to_rfc3339(), e, id])?,
-        (None, None, None) => conn.execute(&sql, params![now.to_rfc3339(), id])?,
-    };
+    log::info!("update SQL: {}", sql);
+    log::info!(
+        "update params count: {}, created_at provided: {}",
+        params_vec.len(),
+        created_at.is_some()
+    );
+
+    let params_refs: Vec<&dyn rusqlite::ToSql> = params_vec.iter().map(|p| p.as_ref()).collect();
+    let rows_affected = conn.execute(&sql, params_refs.as_slice())?;
+
+    log::info!("update rows_affected: {}", rows_affected);
 
     if rows_affected == 0 {
         return Err(AppError::NotFound(format!(
@@ -278,6 +291,27 @@ pub fn archive(conn: &Connection, id: &str) -> Result<Journal, AppError> {
     }
 
     log::info!("Entry archived: id={}", id);
+
+    get(conn, id)
+}
+
+/// Unarchive a journal entry.
+pub fn unarchive(conn: &Connection, id: &str) -> Result<Journal, AppError> {
+    let now = Utc::now();
+
+    let rows_affected = conn.execute(
+        "UPDATE journals SET is_archived = 0, updated_at = ?1 WHERE id = ?2",
+        params![now.to_rfc3339(), id],
+    )?;
+
+    if rows_affected == 0 {
+        return Err(AppError::NotFound(format!(
+            "Journal entry not found: {}",
+            id
+        )));
+    }
+
+    log::info!("Entry unarchived: id={}", id);
 
     get(conn, id)
 }
@@ -681,6 +715,44 @@ pub fn list_entries_by_date_range(
     Ok(entries)
 }
 
+/// Get full journal entries within a date range (for summary generation).
+pub fn get_entries_in_range(
+    conn: &Connection,
+    start_date: &str,
+    end_date: &str,
+) -> Result<Vec<Journal>, AppError> {
+    let mut stmt = conn.prepare(
+        "SELECT id, content, title, entry_type, created_at, updated_at, is_archived
+         FROM journals
+         WHERE is_archived = 0
+         AND date(created_at) >= ?1
+         AND date(created_at) <= ?2
+         ORDER BY created_at DESC",
+    )?;
+
+    let journals: Vec<Journal> = stmt
+        .query_map(params![start_date, end_date], |row| {
+            let entry_type_str: Option<String> = row.get(3)?;
+            Ok(Journal {
+                id: row.get(0)?,
+                content: row.get(1)?,
+                title: row.get(2)?,
+                entry_type: entry_type_str
+                    .as_deref()
+                    .unwrap_or_default()
+                    .parse()
+                    .unwrap_or_default(),
+                created_at: parse_datetime(row.get::<_, String>(4)?),
+                updated_at: parse_datetime(row.get::<_, String>(5)?),
+                is_archived: row.get(6)?,
+            })
+        })?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    Ok(journals)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -753,7 +825,7 @@ mod tests {
         let conn = setup_test_db();
 
         let result = create(&conn, "Original content", None, None).unwrap();
-        let updated = update(&conn, &result.id, Some("Updated content"), None, None).unwrap();
+        let updated = update(&conn, &result.id, Some("Updated content"), None, None, None).unwrap();
 
         assert_eq!(updated.content, "Updated content");
     }
@@ -763,7 +835,7 @@ mod tests {
         let conn = setup_test_db();
 
         let result = create(&conn, "Some content", None, None).unwrap();
-        let updated = update(&conn, &result.id, None, Some("New Title"), None).unwrap();
+        let updated = update(&conn, &result.id, None, Some("New Title"), None, None).unwrap();
 
         assert_eq!(updated.title, Some("New Title".to_string()));
         assert_eq!(updated.content, "Some content");
@@ -790,6 +862,17 @@ mod tests {
         let archived = archive(&conn, &result.id).unwrap();
 
         assert!(archived.is_archived);
+    }
+
+    #[test]
+    fn test_unarchive_entry() {
+        let conn = setup_test_db();
+
+        let result = create(&conn, "To be unarchived", None, None).unwrap();
+        archive(&conn, &result.id).unwrap();
+        let unarchived = unarchive(&conn, &result.id).unwrap();
+
+        assert!(!unarchived.is_archived);
     }
 
     #[test]

@@ -164,6 +164,56 @@ impl OllamaClient {
         Ok(stream)
     }
 
+    /// Generate a summary using a non-streaming request with larger output budget.
+    pub async fn generate_summary(&self, prompt: &str) -> Result<String, AppError> {
+        let url = format!("{}/api/chat", self.base_url);
+
+        let messages = vec![ChatMessage {
+            role: "user".to_string(),
+            content: prompt.to_string(),
+        }];
+
+        let request = ChatRequest {
+            model: CHAT_MODEL.to_string(),
+            messages,
+            stream: false,
+            options: Some(ChatOptions {
+                temperature: 0.7,
+                top_p: 0.9,
+                num_predict: 512,
+            }),
+        };
+
+        let response = self
+            .client
+            .post(&url)
+            .json(&request)
+            .send()
+            .await
+            .map_err(|e| AppError::Llm(format!("Failed to generate summary: {}", e)))?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let body = response.text().await.unwrap_or_default();
+            return Err(AppError::Llm(format!(
+                "Ollama returned error {}: {}",
+                status, body
+            )));
+        }
+
+        let resp: NonStreamResponse = response
+            .json()
+            .await
+            .map_err(|e| AppError::Llm(format!("Failed to parse summary response: {}", e)))?;
+
+        let summary = resp
+            .message
+            .map(|m| m.content.trim().to_string())
+            .unwrap_or_default();
+
+        Ok(summary)
+    }
+
     /// Generate a title for a journal entry using a single non-streaming request.
     pub async fn generate_title(&self, content: &str) -> Result<String, AppError> {
         let url = format!("{}/api/chat", self.base_url);

@@ -220,8 +220,7 @@ export function useEntryChatStream(journalId: string | null) {
     [
       journalId,
       addMessage,
-      appendToMessage,
-      setMessageStreaming,
+      removeMessage,
       setIsStreaming,
       setStreamingEntryId,
       setCurrentStreamingMessageId,

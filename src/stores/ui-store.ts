@@ -1,5 +1,4 @@
 import { create } from "zustand";
-import type { EntryType } from "../types/journal";
 
 export type MainView = "journal" | "library";
 export type EditorFontSize = "default" | "medium" | "large";
@@ -7,9 +6,9 @@ export type EditorFontSize = "default" | "medium" | "large";
 // Editor context for titlebar integration
 export interface EditorContext {
   entryId: string | null;
-  entryType: EntryType;
   isArchived: boolean;
-  onChangeEntryType: (type: EntryType) => void;
+  entryDate: string | null;
+  onChangeDate: (date: string) => void;
   onArchive: () => void;
   onDelete: () => void;
 }
@@ -67,6 +66,8 @@ interface UIState {
   setEditorFontSize: (size: EditorFontSize) => void;
   showWordCount: boolean;
   toggleShowWordCount: () => void;
+  showTitle: boolean;
+  toggleShowTitle: () => void;
 
   // Editor context for titlebar
   editorContext: EditorContext | null;
@@ -141,6 +142,8 @@ export const useUIStore = create<UIState>((set) => ({
   setEditorFontSize: (size) => set({ editorFontSize: size }),
   showWordCount: false,
   toggleShowWordCount: () => set((s) => ({ showWordCount: !s.showWordCount })),
+  showTitle: true,
+  toggleShowTitle: () => set((s) => ({ showTitle: !s.showTitle })),
 
   // Editor context for titlebar
   editorContext: null,
