@@ -1,11 +1,13 @@
 import { useEffect, useRef } from "react";
 import { MessageBubble } from "./MessageBubble";
 import { useChatStore } from "../../stores/chat-store";
+import type { ChatMessage } from "../../types/chat";
 
 const GLOBAL_KEY = "__global__";
+const EMPTY_MESSAGES: ChatMessage[] = [];
 
 export function MessageList() {
-  const messages = useChatStore((state) => state.messagesByEntry[GLOBAL_KEY] || []);
+  const messages = useChatStore((state) => state.messagesByEntry[GLOBAL_KEY] ?? EMPTY_MESSAGES);
   const isStreaming = useChatStore((state) => state.isStreaming);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 

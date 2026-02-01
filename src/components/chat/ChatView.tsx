@@ -7,12 +7,14 @@ import { DistressBanner } from "./DistressBanner";
 import { OllamaSetupBanner, OllamaStatusIndicator } from "./OllamaStatus";
 import { useChatStore } from "../../stores/chat-store";
 import { useOllamaStatus } from "../../hooks/use-chat";
+import type { ChatMessage } from "../../types/chat";
 
 const GLOBAL_KEY = "__global__";
+const EMPTY_MESSAGES: ChatMessage[] = [];
 
 export function ChatView() {
   const clearMessages = useChatStore((state) => state.clearMessages);
-  const messages = useChatStore((state) => state.messagesByEntry[GLOBAL_KEY] || []);
+  const messages = useChatStore((state) => state.messagesByEntry[GLOBAL_KEY] ?? EMPTY_MESSAGES);
   const { data: status } = useOllamaStatus();
 
   const isReady = status?.is_running && status?.model_available;

@@ -5,7 +5,9 @@ pub mod ml;
 
 use db::chat::{ChatMessage, CreateMessageParams};
 use db::images::{EntryImage, InsertImageParams};
-use db::journals::{CreateEntryResponse, DayEmotions, DeleteResponse, Journal, JournalStats, StreakInfo};
+use db::journals::{
+    CreateEntryResponse, DayEmotions, DeleteResponse, Journal, JournalStats, StreakInfo,
+};
 use db::search::HybridSearchResult;
 use db::templates::{CreateTemplateResponse, DeleteTemplateResponse, Template};
 use db::DbPool;
@@ -550,6 +552,13 @@ async fn generate_entry_embedding(
     Ok(())
 }
 
+/// Minimum character count to trigger chunking (roughly 100+ words)
+const CHUNK_THRESHOLD_CHARS: usize = 500;
+/// Target chunk size in characters (roughly 100-125 words)
+const CHUNK_SIZE_CHARS: usize = 500;
+/// Overlap between chunks for context continuity
+const CHUNK_OVERLAP_CHARS: usize = 100;
+
 async fn generate_embedding_inner(pool: &DbPool, ml: &MlState, id: &str) -> Result<(), AppError> {
     // Check if embedding already exists
     {
@@ -566,13 +575,50 @@ async fn generate_embedding_inner(pool: &DbPool, ml: &MlState, id: &str) -> Resu
         entry.content
     };
 
-    // Generate embedding
     let model = ml.get_embedding_model().await?;
+
+    // Generate full-entry embedding
     let embedding = model.embed(&content)?;
 
-    // Store embedding
-    let conn = pool.get()?;
-    db::vectors::store_embedding(&conn, id, &embedding)?;
+    // Store entry-level embedding
+    {
+        let conn = pool.get()?;
+        db::vectors::store_embedding(&conn, id, &embedding)?;
+    }
+
+    // For longer entries, also generate chunk embeddings for better RAG precision
+    if content.len() > CHUNK_THRESHOLD_CHARS {
+        let chunks = ml::embeddings::chunk_text(&content, CHUNK_SIZE_CHARS, CHUNK_OVERLAP_CHARS);
+
+        if chunks.len() > 1 {
+            let mut chunk_data = Vec::with_capacity(chunks.len());
+
+            for (index, chunk_text) in chunks.into_iter().enumerate() {
+                match model.embed(&chunk_text) {
+                    Ok(chunk_embedding) => {
+                        chunk_data.push(db::vectors::ChunkData {
+                            chunk_index: index,
+                            chunk_text,
+                            embedding: chunk_embedding,
+                        });
+                    }
+                    Err(e) => {
+                        log::warn!("Failed to embed chunk {} for entry {}: {}", index, id, e);
+                    }
+                }
+            }
+
+            if !chunk_data.is_empty() {
+                let conn = pool.get()?;
+                db::vectors::store_chunk_embeddings(&conn, id, &chunk_data)?;
+                log::info!(
+                    "Generated {} chunk embeddings for entry {}",
+                    chunk_data.len(),
+                    id
+                );
+            }
+        }
+    }
 
     log::info!("Generated embedding for entry {}", id);
     Ok(())
@@ -660,8 +706,22 @@ async fn chat_stream(
 ) -> Result<(), AppError> {
     let context_limit = context_limit.unwrap_or(5);
 
-    // Check safety first
-    let safety_result = llm.safety.check(&message);
+    // Get emotions for current entry if available (for enhanced safety check)
+    let emotions: Option<Vec<EmotionPrediction>> = if let Some(ref jid) = journal_id {
+        let conn = pool.get()?;
+        db::emotions::get(&conn, jid).ok().map(|e| {
+            e.into_iter()
+                .map(|(label, score)| EmotionPrediction { label, score })
+                .collect()
+        })
+    } else {
+        None
+    };
+
+    // Check safety with emotion context
+    let safety_result = llm
+        .safety
+        .check_with_emotions(&message, emotions.as_deref());
     if !safety_result.safe {
         // Emit the intervention message as a "response"
         if let Some(intervention) = &safety_result.intervention {
@@ -686,23 +746,28 @@ async fn chat_stream(
         context_limit,
     )
     .await
+    .map_err(|e| log::warn!("RAG context retrieval failed: {}", e))
     .ok();
 
     // Get recent chat history for this entry if journal_id is provided
     let chat_history = if let Some(ref jid) = journal_id {
         let conn = pool.get()?;
-        db::chat::get_recent_for_entry(&conn, jid, 10).ok()
+        db::chat::get_recent_for_entry(&conn, jid, 10)
+            .map_err(|e| log::warn!("Chat history retrieval failed: {}", e))
+            .ok()
     } else {
         None
     };
 
-    // Build the prompt with context
+    // Build the prompt with context and source tracking
     let chat_service = llm::ChatService::new(llm.ollama.clone(), llm.safety.clone());
-    let messages = chat_service.build_prompt_with_history(
+    let prompt_with_sources = chat_service.build_prompt_with_sources(
         &message,
         context.as_deref(),
         chat_history.as_deref(),
     );
+    let messages = prompt_with_sources.messages;
+    let sources = prompt_with_sources.sources;
 
     // Stream the response
     match chat_service.chat_stream(messages).await {
@@ -729,19 +794,37 @@ async fn chat_stream(
                             let augmented =
                                 chat_service.augment_with_safety(&full_response, &safety_result);
                             if augmented != full_response {
-                                let suffix = augmented.strip_prefix(&full_response).unwrap_or("");
-                                let _ = app.emit(
-                                    "chat-chunk",
-                                    ChatChunkEvent {
-                                        chunk: suffix.to_string(),
-                                        done: false,
-                                    },
-                                );
+                                // Safety augmentation should append to the response, preserving the prefix
+                                let suffix = if augmented.starts_with(&full_response) {
+                                    &augmented[full_response.len()..]
+                                } else {
+                                    // Augmentation didn't preserve prefix - log warning and emit full augmented text
+                                    log::warn!(
+                                        "Safety augmentation did not preserve response prefix"
+                                    );
+                                    augmented.as_str()
+                                };
+                                if !suffix.is_empty() {
+                                    let _ = app.emit(
+                                        "chat-chunk",
+                                        ChatChunkEvent {
+                                            chunk: suffix.to_string(),
+                                            done: false,
+                                        },
+                                    );
+                                }
                                 full_response = augmented;
                             }
 
                             // Persist the assistant's response if journal_id was provided
                             if let Some(ref jid) = journal_id {
+                                // Serialize sources to JSON for metadata
+                                let metadata = if !sources.is_empty() {
+                                    serde_json::to_string(&sources).ok()
+                                } else {
+                                    None
+                                };
+
                                 let conn = pool.get()?;
                                 let _ = db::chat::create(
                                     &conn,
@@ -749,12 +832,18 @@ async fn chat_stream(
                                         journal_id: jid.clone(),
                                         role: "assistant".to_string(),
                                         content: full_response.clone(),
-                                        metadata: None,
+                                        metadata,
                                     },
                                 );
                             }
 
-                            let _ = app.emit("chat-done", ());
+                            // Emit sources with the done event
+                            let _ = app.emit(
+                                "chat-done",
+                                serde_json::json!({
+                                    "sources": sources
+                                }),
+                            );
                             break;
                         }
                     }

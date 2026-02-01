@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { invoke } from "@tauri-apps/api/core";
-import type { ChatMessage, DbChatMessage, SafetyResult } from "../types/chat";
+import type { ChatMessage, DbChatMessage, SafetyResult, SourceReference } from "../types/chat";
 import { dbMessageToUi } from "../types/chat";
 
 interface ChatState {
@@ -10,14 +10,20 @@ interface ChatState {
   // Loading state per entry
   loadingEntries: Set<string>;
 
+  // Load error state per entry
+  loadErrors: Map<string, Error>;
+
   // Actions for managing messages
   loadMessages: (journalId: string) => Promise<void>;
   addMessage: (journalId: string | null, message: Omit<ChatMessage, "id" | "timestamp" | "journalId">) => string;
   updateMessage: (journalId: string | null, id: string, content: string) => void;
   appendToMessage: (journalId: string | null, id: string, chunk: string) => void;
+  removeMessage: (journalId: string | null, id: string) => void;
   setMessageStreaming: (journalId: string | null, id: string, isStreaming: boolean) => void;
+  setMessageSources: (journalId: string | null, id: string, sources: SourceReference[]) => void;
   clearMessages: (journalId: string) => void;
   getMessages: (journalId: string | null) => ChatMessage[];
+  getLoadError: (journalId: string | null) => Error | undefined;
 
   // Streaming state
   isStreaming: boolean;
@@ -52,6 +58,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   // Messages by entry
   messagesByEntry: {},
   loadingEntries: new Set(),
+  loadErrors: new Map(),
 
   loadMessages: async (journalId: string) => {
     const state = get();
@@ -71,20 +78,26 @@ export const useChatStore = create<ChatState>((set, get) => ({
       set((s) => {
         const newLoadingEntries = new Set(s.loadingEntries);
         newLoadingEntries.delete(journalId);
+        const newLoadErrors = new Map(s.loadErrors);
+        newLoadErrors.delete(journalId);
         return {
           messagesByEntry: {
             ...s.messagesByEntry,
             [journalId]: messages,
           },
           loadingEntries: newLoadingEntries,
+          loadErrors: newLoadErrors,
         };
       });
     } catch (error) {
       console.error("Failed to load messages:", error);
+      const err = error instanceof Error ? error : new Error(String(error));
       set((s) => {
         const newLoadingEntries = new Set(s.loadingEntries);
         newLoadingEntries.delete(journalId);
-        return { loadingEntries: newLoadingEntries };
+        const newLoadErrors = new Map(s.loadErrors);
+        newLoadErrors.set(journalId, err);
+        return { loadingEntries: newLoadingEntries, loadErrors: newLoadErrors };
       });
     }
   },
@@ -134,6 +147,16 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }));
   },
 
+  removeMessage: (journalId, id) => {
+    const key = getEntryKey(journalId);
+    set((state) => ({
+      messagesByEntry: {
+        ...state.messagesByEntry,
+        [key]: (state.messagesByEntry[key] || []).filter((m) => m.id !== id),
+      },
+    }));
+  },
+
   setMessageStreaming: (journalId, id, isStreaming) => {
     const key = getEntryKey(journalId);
     set((state) => ({
@@ -141,6 +164,18 @@ export const useChatStore = create<ChatState>((set, get) => ({
         ...state.messagesByEntry,
         [key]: (state.messagesByEntry[key] || []).map((m) =>
           m.id === id ? { ...m, isStreaming } : m
+        ),
+      },
+    }));
+  },
+
+  setMessageSources: (journalId, id, sources) => {
+    const key = getEntryKey(journalId);
+    set((state) => ({
+      messagesByEntry: {
+        ...state.messagesByEntry,
+        [key]: (state.messagesByEntry[key] || []).map((m) =>
+          m.id === id ? { ...m, sources } : m
         ),
       },
     }));
@@ -158,6 +193,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
   getMessages: (journalId) => {
     const key = getEntryKey(journalId);
     return get().messagesByEntry[key] || [];
+  },
+
+  getLoadError: (journalId) => {
+    const key = getEntryKey(journalId);
+    return get().loadErrors.get(key);
   },
 
   // Streaming state

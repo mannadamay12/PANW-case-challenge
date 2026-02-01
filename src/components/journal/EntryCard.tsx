@@ -5,15 +5,15 @@ import { useArchiveEntry } from "../../hooks/use-journal";
 import { useUIStore } from "../../stores/ui-store";
 import { cn } from "../../lib/utils";
 import { EmotionBadges } from "./EmotionBadges";
-import { EntryTypeBadge } from "./EntryTypeSelector";
 import { deriveTitle, formatEntryDate } from "../../lib/entry-utils";
 
 interface EntryCardProps {
   entry: JournalEntry;
   isSelected?: boolean;
+  animationDelay?: number;
 }
 
-export function EntryCard({ entry, isSelected }: EntryCardProps) {
+export function EntryCard({ entry, isSelected, animationDelay = 0 }: EntryCardProps) {
   const { setSelectedEntryId, openEditor, setDeleteConfirmId } = useUIStore();
   const archiveMutation = useArchiveEntry();
   const [showMenu, setShowMenu] = useState(false);
@@ -53,10 +53,11 @@ export function EntryCard({ entry, isSelected }: EntryCardProps) {
     <div
       onClick={handleClick}
       className={cn(
-        "group relative px-4 py-3 cursor-pointer transition-colors",
-        isSelected ? "bg-stone-200" : "hover:bg-stone-100",
+        "group relative px-4 py-3 cursor-pointer transition-colors animate-slide-up",
+        isSelected ? "bg-sanctuary-selected" : "hover:bg-sanctuary-hover",
         entry.is_archived && "opacity-60"
       )}
+      style={{ animationDelay: `${animationDelay}ms` }}
     >
       {/* Title */}
       <div className="flex items-start justify-between gap-2">
@@ -75,21 +76,21 @@ export function EntryCard({ entry, isSelected }: EntryCardProps) {
             className={cn(
               "p-1 rounded text-sanctuary-muted transition-colors",
               "opacity-0 group-hover:opacity-100 focus:opacity-100",
-              "hover:bg-stone-200 hover:text-sanctuary-text"
+              "hover:bg-sanctuary-selected hover:text-sanctuary-text"
             )}
           >
             <MoreHorizontal className="h-4 w-4" />
           </button>
 
           {showMenu && (
-            <div className="absolute right-4 top-10 z-10 w-36 rounded-lg border border-sanctuary-border bg-sanctuary-card py-1 shadow-lg">
+            <div className="absolute right-4 top-10 z-10 w-36 rounded-lg border border-sanctuary-border bg-sanctuary-card py-1 shadow-lg animate-scale-in origin-top-right">
               {!entry.is_archived && (
                 <button
                   onClick={() => {
                     setShowMenu(false);
                     archiveMutation.mutate(entry.id);
                   }}
-                  className="flex w-full items-center gap-2 px-3 py-2 text-sm text-sanctuary-muted hover:bg-stone-100 hover:text-sanctuary-text"
+                  className="flex w-full items-center gap-2 px-3 py-2 text-sm text-sanctuary-muted hover:bg-sanctuary-hover hover:text-sanctuary-text"
                 >
                   <Archive className="h-4 w-4" />
                   Archive
@@ -100,7 +101,7 @@ export function EntryCard({ entry, isSelected }: EntryCardProps) {
                   setShowMenu(false);
                   setDeleteConfirmId(entry.id);
                 }}
-                className="flex w-full items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50"
+                className="flex w-full items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-950"
               >
                 <Trash2 className="h-4 w-4" />
                 Delete
@@ -118,10 +119,9 @@ export function EntryCard({ entry, isSelected }: EntryCardProps) {
         </p>
       )}
 
-      {/* Emotions and metadata row */}
-      <div className="mt-2 flex items-center gap-2 flex-wrap">
+      {/* Emotions row (muted grey badges) */}
+      <div className="mt-2">
         <EmotionBadges entryId={entry.id} compact />
-        <EntryTypeBadge type={entry.entry_type} />
       </div>
 
       {/* Date and archived badge */}
@@ -130,7 +130,7 @@ export function EntryCard({ entry, isSelected }: EntryCardProps) {
           {formatEntryDate(entry.created_at)}
         </time>
         {entry.is_archived && (
-          <span className="text-xs text-sanctuary-muted bg-stone-100 px-1.5 py-0.5 rounded">
+          <span className="text-xs text-sanctuary-muted bg-sanctuary-hover px-1.5 py-0.5 rounded">
             Archived
           </span>
         )}

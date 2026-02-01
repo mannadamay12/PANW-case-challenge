@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import TextareaAutosize from "react-textarea-autosize";
-import { Menu, Archive, Trash2, AlertCircle, RotateCcw, Image, MessageCircle } from "lucide-react";
+import { AlertCircle, RotateCcw, Image } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import {
   useEntry,
@@ -13,7 +13,6 @@ import { useUIStore } from "../../stores/ui-store";
 import {
   useDebouncedSave,
   SaveData,
-  SaveStatus,
 } from "../../hooks/use-debounced-save";
 import { useSaveOnClose } from "../../hooks/use-save-on-close";
 import { useEmbeddingOnSave } from "../../hooks/use-ml";
@@ -22,12 +21,22 @@ import { Button } from "../ui/Button";
 import { Skeleton } from "../ui/Skeleton";
 import { cn } from "../../lib/utils";
 import { WordCount } from "./WordCount";
-import { SaveStatusIndicator } from "./SaveStatusIndicator";
 import { InlineImage } from "./InlineImage";
-import { EntryTypeSelector } from "./EntryTypeSelector";
 import { AISidepanel } from "./AISidepanel";
-import { formatEditorDate } from "../../lib/entry-utils";
 import type { EntryType, EntryImage } from "../../types/journal";
+
+// Font size classes based on preference
+const fontSizeClasses = {
+  default: "text-lg",
+  medium: "text-xl",
+  large: "text-2xl",
+};
+
+const titleFontSizeClasses = {
+  default: "text-2xl",
+  medium: "text-3xl",
+  large: "text-4xl",
+};
 
 export function Editor() {
   const {
@@ -36,13 +45,12 @@ export function Editor() {
     closeEditor,
     openEditor,
     setDeleteConfirmId,
-    toggleSidebar,
-    isSidebarOpen,
     pendingTemplateText,
     pendingTemplateTitle,
     clearPendingTemplate,
-    isAIPanelOpen,
-    toggleAIPanel,
+    editorFontSize,
+    showWordCount,
+    setEditorContext,
   } = useUIStore();
 
   const { data: entry, isLoading } = useEntry(selectedEntryId);
@@ -56,29 +64,13 @@ export function Editor() {
   const [title, setTitle] = useState("");
   const [entryType, setEntryType] = useState<EntryType>("reflection");
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
-  const [showMenu, setShowMenu] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [imageError, setImageError] = useState<string | null>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Track which entry ID we initialized content from
   const initializedForRef = useRef<string | null | "new">(null);
   const createInFlightRef = useRef(false);
-
-  // Close menu on outside click
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setShowMenu(false);
-      }
-    };
-    if (showMenu) {
-      document.addEventListener("mousedown", handleClickOutside);
-    }
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [showMenu]);
 
   const handleSaveNew = useCallback(
     async (data: SaveData) => {
@@ -107,6 +99,10 @@ export function Editor() {
                   title: generatedTitle,
                 });
               }
+            },
+            onError: (error) => {
+              console.error("Failed to generate title:", error);
+              // Title generation is non-critical, don't block the user
             },
           });
         }
@@ -145,7 +141,6 @@ export function Editor() {
     delay: 1000,
     onSaveNew: handleSaveNew,
     onSaveExisting: handleSaveExisting,
-    onStatusChange: setSaveStatus,
   });
 
   useSaveOnClose({
@@ -320,6 +315,8 @@ export function Editor() {
   // Delete image handler
   const handleDeleteImage = useCallback(
     async (relativePath: string) => {
+      if (!selectedEntryId) return;
+
       try {
         const images = await invoke<EntryImage[]>("get_entry_images", {
           entryId: selectedEntryId,
@@ -371,34 +368,48 @@ export function Editor() {
     }
   }, [content, title, entryType, debouncedSave, scheduleSave]);
 
-  const handleArchive = () => {
+  const handleArchive = useCallback(() => {
     if (selectedEntryId) {
       archiveMutation.mutate(selectedEntryId, {
         onSuccess: () => closeEditor(),
       });
     }
-  };
+  }, [selectedEntryId, archiveMutation, closeEditor]);
 
-  const handleDelete = () => {
+  const handleDelete = useCallback(() => {
     if (selectedEntryId) {
       setDeleteConfirmId(selectedEntryId);
     }
-  };
+  }, [selectedEntryId, setDeleteConfirmId]);
+
+  // Use refs for callbacks to avoid infinite loops in the context effect
+  const handleEntryTypeChangeRef = useRef(handleEntryTypeChange);
+  handleEntryTypeChangeRef.current = handleEntryTypeChange;
+  const handleArchiveRef = useRef(handleArchive);
+  handleArchiveRef.current = handleArchive;
+  const handleDeleteRef = useRef(handleDelete);
+  handleDeleteRef.current = handleDelete;
+
+  // Update editor context for titlebar
+  useEffect(() => {
+    setEditorContext({
+      entryId: selectedEntryId,
+      entryType,
+      isArchived: entry?.is_archived ?? false,
+      onChangeEntryType: (type: EntryType) => handleEntryTypeChangeRef.current(type),
+      onArchive: () => handleArchiveRef.current(),
+      onDelete: () => handleDeleteRef.current(),
+    });
+
+    return () => {
+      setEditorContext(null);
+    };
+  }, [selectedEntryId, entryType, entry?.is_archived, setEditorContext]);
 
   if (isLoading && selectedEntryId) {
     return (
-      <div className="h-full flex bg-white">
+      <div className="h-full flex bg-sanctuary-card">
         <div className="flex-1 flex flex-col min-w-0">
-          {/* Header skeleton */}
-          <header className="flex items-center justify-between border-b border-sanctuary-border px-4 py-2">
-            <div className="w-8" />
-            <div className="flex items-center gap-3">
-              <Skeleton className="h-4 w-24" />
-              <Skeleton className="h-6 w-20 rounded" />
-            </div>
-            <Skeleton className="h-4 w-12" />
-          </header>
-          {/* Editor area skeleton */}
           <div className="flex-1 overflow-y-auto">
             <div className="max-w-[65ch] mx-auto px-4 py-8">
               <Skeleton className="h-8 w-2/3 mb-4" />
@@ -411,188 +422,102 @@ export function Editor() {
               </div>
             </div>
           </div>
-          {/* Footer skeleton */}
-          <footer className="border-t border-sanctuary-border px-4 py-2 flex justify-end">
-            <Skeleton className="h-4 w-32" />
-          </footer>
         </div>
-        {/* AI Sidepanel (still rendered during loading for consistency) */}
         <AISidepanel journalId={selectedEntryId} entryContent="" />
       </div>
     );
   }
 
   return (
-    <div className="h-full flex bg-white">
+    <div className="h-full flex bg-sanctuary-card">
       {/* Main editor area */}
       <div className="flex-1 flex flex-col min-w-0">
-        {/* Header */}
-        <header className="flex items-center justify-between border-b border-sanctuary-border px-4 py-2">
-        <div className="flex items-center gap-2">
-          {!isSidebarOpen && (
-            <Button variant="ghost" size="icon" onClick={toggleSidebar}>
-              <Menu className="h-5 w-5" />
-            </Button>
+        {/* Editor area */}
+        <div
+          className={cn(
+            "flex-1 overflow-y-auto relative",
+            isDragging && "bg-sanctuary-hover"
           )}
-        </div>
-
-        {/* Center: Date and entry type */}
-        <div className="flex items-center gap-3">
-          {entry && (
-            <time className="text-sm text-sanctuary-muted">
-              {formatEditorDate(entry.created_at)}
-            </time>
-          )}
-          {isNewEntry && (
-            <span className="text-sm text-sanctuary-muted">New entry</span>
-          )}
-          <EntryTypeSelector
-            value={entryType}
-            onChange={handleEntryTypeChange}
-            compact
-          />
-        </div>
-
-        {/* Right: Actions */}
-        <div className="flex items-center gap-2">
-          {saveError && (
-            <div className="flex items-center gap-2 text-red-600">
-              <AlertCircle className="h-4 w-4" />
-              <span className="text-xs">{saveError}</span>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleRetry}
-                className="text-red-600 hover:text-red-700"
-              >
-                <RotateCcw className="h-3 w-3 mr-1" />
-                Retry
-              </Button>
+          onDragEnter={handleDragEnter}
+          onDragLeave={handleDragLeave}
+          onDragOver={handleDragOver}
+          onDrop={handleDrop}
+        >
+          {/* Drag overlay */}
+          {isDragging && (
+            <div className="absolute inset-0 flex items-center justify-center bg-sanctuary-hover/80 border-2 border-dashed border-sanctuary-border rounded-lg m-4 z-10">
+              <div className="flex flex-col items-center gap-2 text-sanctuary-muted">
+                <Image className="h-8 w-8" />
+                <span className="text-sm font-medium">Drop image here</span>
+              </div>
             </div>
           )}
 
-          {!saveError && <SaveStatusIndicator status={saveStatus} />}
-
-          {/* AI Companion toggle */}
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={toggleAIPanel}
-            className={cn(
-              isAIPanelOpen && "bg-sanctuary-accent/10 text-sanctuary-accent"
+          <div className="max-w-[65ch] mx-auto px-4 py-8">
+            {/* Save error inline */}
+            {saveError && (
+              <div className="mb-4 flex items-center gap-2 text-red-600 text-sm">
+                <AlertCircle className="h-4 w-4" />
+                <span>{saveError}</span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleRetry}
+                  className="text-red-600 hover:text-red-700"
+                >
+                  <RotateCcw className="h-3 w-3 mr-1" />
+                  Retry
+                </Button>
+              </div>
             )}
-            title="AI Companion"
-          >
-            <MessageCircle className="h-5 w-5" />
-          </Button>
 
-          {/* Menu button for archive/delete */}
-          {selectedEntryId && (
-            <div ref={menuRef} className="relative">
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setShowMenu(!showMenu)}
-              >
-                <Menu className="h-5 w-5" />
-              </Button>
-
-              {showMenu && (
-                <div className="absolute right-0 top-10 z-10 w-36 rounded-lg border border-sanctuary-border bg-sanctuary-card py-1 shadow-lg">
-                  {!entry?.is_archived && (
-                    <button
-                      onClick={() => {
-                        setShowMenu(false);
-                        handleArchive();
-                      }}
-                      className="flex w-full items-center gap-2 px-3 py-2 text-sm text-sanctuary-muted hover:bg-stone-100 hover:text-sanctuary-text"
-                    >
-                      <Archive className="h-4 w-4" />
-                      Archive
-                    </button>
-                  )}
-                  <button
-                    onClick={() => {
-                      setShowMenu(false);
-                      handleDelete();
-                    }}
-                    className="flex w-full items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                    Delete
-                  </button>
-                </div>
+            {/* Title field */}
+            <input
+              type="text"
+              value={title}
+              onChange={(e) => handleTitleChange(e.target.value)}
+              placeholder="Title"
+              className={cn(
+                "w-full border-0 bg-transparent mb-4",
+                "font-serif font-semibold text-sanctuary-text",
+                "placeholder:text-sanctuary-muted/50",
+                "focus:outline-none",
+                titleFontSizeClasses[editorFontSize]
               )}
-            </div>
-          )}
-        </div>
-      </header>
+            />
 
-      {/* Editor area */}
-      <div
-        className={cn(
-          "flex-1 overflow-y-auto relative",
-          isDragging && "bg-blue-50/50"
-        )}
-        onDragEnter={handleDragEnter}
-        onDragLeave={handleDragLeave}
-        onDragOver={handleDragOver}
-        onDrop={handleDrop}
-      >
-        {/* Drag overlay */}
-        {isDragging && (
-          <div className="absolute inset-0 flex items-center justify-center bg-blue-50/80 border-2 border-dashed border-blue-300 rounded-lg m-4 z-10">
-            <div className="flex flex-col items-center gap-2 text-blue-600">
-              <Image className="h-8 w-8" />
-              <span className="text-sm font-medium">Drop image here</span>
-            </div>
-          </div>
-        )}
+            {/* Content with inline image rendering */}
+            <EditorContent
+              content={content}
+              onChange={handleContentChange}
+              onPaste={handlePaste}
+              onDeleteImage={handleDeleteImage}
+              textareaRef={textareaRef}
+              fontSize={editorFontSize}
+            />
 
-        <div className="max-w-[65ch] mx-auto px-4 py-8">
-          {/* Title field */}
-          <input
-            type="text"
-            value={title}
-            onChange={(e) => handleTitleChange(e.target.value)}
-            placeholder="Title"
-            className={cn(
-              "w-full border-0 bg-transparent mb-4",
-              "font-serif text-2xl font-semibold text-sanctuary-text",
-              "placeholder:text-sanctuary-muted/50",
-              "focus:outline-none"
+            {/* Image upload status */}
+            {isUploading && (
+              <div className="mt-4 flex items-center gap-2 text-sanctuary-muted text-sm">
+                <span className="animate-pulse">Uploading image...</span>
+              </div>
             )}
-          />
 
-          {/* Content with inline image rendering */}
-          <EditorContent
-            content={content}
-            onChange={handleContentChange}
-            onPaste={handlePaste}
-            onDeleteImage={handleDeleteImage}
-            textareaRef={textareaRef}
-          />
+            {imageError && (
+              <div className="mt-4 flex items-center gap-2 text-red-600 text-sm">
+                <AlertCircle className="h-4 w-4" />
+                <span>{imageError}</span>
+              </div>
+            )}
 
-          {/* Image upload status */}
-          {isUploading && (
-            <div className="mt-4 flex items-center gap-2 text-sanctuary-muted text-sm">
-              <span className="animate-pulse">Uploading image...</span>
-            </div>
-          )}
-
-          {imageError && (
-            <div className="mt-4 flex items-center gap-2 text-red-600 text-sm">
-              <AlertCircle className="h-4 w-4" />
-              <span>{imageError}</span>
-            </div>
-          )}
+            {/* Word count (conditionally shown) */}
+            {showWordCount && (
+              <div className="mt-8 flex justify-end">
+                <WordCount content={content} />
+              </div>
+            )}
+          </div>
         </div>
-      </div>
-
-        {/* Footer with word count */}
-        <footer className="border-t border-sanctuary-border px-4 py-2 flex justify-end">
-          <WordCount content={content} />
-        </footer>
       </div>
 
       {/* AI Sidepanel */}
@@ -602,6 +527,8 @@ export function Editor() {
 }
 
 // Regex to match markdown image syntax: ![alt](path)
+// Non-global version for testing presence, global version for iteration
+const HAS_IMAGE_REGEX = /!\[([^\]]*)\]\(([^)]+)\)/;
 const IMAGE_REGEX = /!\[([^\]]*)\]\(([^)]+)\)/g;
 
 interface EditorContentProps {
@@ -610,6 +537,7 @@ interface EditorContentProps {
   onPaste: (e: React.ClipboardEvent) => void;
   onDeleteImage: (relativePath: string) => void;
   textareaRef: React.RefObject<HTMLTextAreaElement | null>;
+  fontSize: "default" | "medium" | "large";
 }
 
 function EditorContent({
@@ -618,10 +546,10 @@ function EditorContent({
   onPaste,
   onDeleteImage,
   textareaRef,
+  fontSize,
 }: EditorContentProps) {
-  // Check if content has any images
-  const hasImages = IMAGE_REGEX.test(content);
-  IMAGE_REGEX.lastIndex = 0; // Reset regex state
+  // Check if content has any images (use non-global regex for test)
+  const hasImages = HAS_IMAGE_REGEX.test(content);
 
   if (!hasImages) {
     // No images - render simple textarea
@@ -635,9 +563,10 @@ function EditorContent({
         minRows={15}
         className={cn(
           "w-full resize-none border-0 bg-transparent",
-          "font-serif text-lg leading-relaxed text-sanctuary-text",
+          "font-serif leading-relaxed text-sanctuary-text",
           "placeholder:text-sanctuary-muted/50",
-          "focus:outline-none"
+          "focus:outline-none",
+          fontSizeClasses[fontSize]
         )}
         autoFocus
       />
@@ -650,6 +579,8 @@ function EditorContent({
   let lastIndex = 0;
   let match;
 
+  // Reset global regex state before iteration
+  IMAGE_REGEX.lastIndex = 0;
   while ((match = IMAGE_REGEX.exec(content)) !== null) {
     // Add text before the image
     if (match.index > lastIndex) {
@@ -714,9 +645,10 @@ function EditorContent({
             minRows={isFirst && segments.length === 1 ? 15 : isLast ? 5 : 1}
             className={cn(
               "w-full resize-none border-0 bg-transparent",
-              "font-serif text-lg leading-relaxed text-sanctuary-text",
+              "font-serif leading-relaxed text-sanctuary-text",
               "placeholder:text-sanctuary-muted/50",
-              "focus:outline-none"
+              "focus:outline-none",
+              fontSizeClasses[fontSize]
             )}
             autoFocus={isFirst}
           />

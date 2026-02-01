@@ -3,10 +3,88 @@ use std::path::Path;
 use candle_core::{DType, Device, Tensor};
 use candle_nn::VarBuilder;
 use candle_transformers::models::bert::{BertModel, Config};
+use regex::Regex;
 use tokenizers::Tokenizer;
 
 use crate::error::AppError;
 use crate::ml::models::{get_device, EMBEDDING_MODEL};
+
+/// Chunk text into smaller segments for better embedding quality.
+/// Uses sentence boundaries with overlap for context preservation.
+pub fn chunk_text(text: &str, max_chars: usize, overlap_chars: usize) -> Vec<String> {
+    // Short texts don't need chunking
+    if text.len() <= max_chars {
+        return vec![text.to_string()];
+    }
+
+    // Split by sentence boundaries (period followed by space, or double newline)
+    let sentence_re = Regex::new(r"(?:[.!?]\s+|\n\n+)").expect("Invalid regex");
+    let sentences: Vec<&str> = sentence_re.split(text).collect();
+
+    let mut chunks = Vec::new();
+    let mut current_chunk = String::new();
+    let mut overlap_buffer = String::new();
+
+    for sentence in sentences {
+        let sentence = sentence.trim();
+        if sentence.is_empty() {
+            continue;
+        }
+
+        // Add sentence ending back (simplified - just use period)
+        let sentence_with_punct = if sentence.ends_with(['.', '!', '?']) {
+            sentence.to_string()
+        } else {
+            format!("{}.", sentence)
+        };
+
+        // Check if adding this sentence exceeds the limit
+        let test_len = if current_chunk.is_empty() {
+            sentence_with_punct.len()
+        } else {
+            current_chunk.len() + 1 + sentence_with_punct.len()
+        };
+
+        if test_len > max_chars && !current_chunk.is_empty() {
+            // Save current chunk
+            chunks.push(current_chunk.clone());
+
+            // Start new chunk with overlap from previous
+            current_chunk = if overlap_buffer.len() > overlap_chars {
+                overlap_buffer[overlap_buffer.len() - overlap_chars..].to_string()
+            } else {
+                overlap_buffer.clone()
+            };
+
+            if !current_chunk.is_empty() {
+                current_chunk.push(' ');
+            }
+        }
+
+        // Add sentence to current chunk
+        if current_chunk.is_empty() {
+            current_chunk = sentence_with_punct.clone();
+        } else {
+            current_chunk.push(' ');
+            current_chunk.push_str(&sentence_with_punct);
+        }
+
+        // Update overlap buffer with recent content
+        overlap_buffer = current_chunk.clone();
+    }
+
+    // Don't forget the last chunk
+    if !current_chunk.is_empty() {
+        chunks.push(current_chunk);
+    }
+
+    // Ensure we have at least one chunk
+    if chunks.is_empty() {
+        chunks.push(text.to_string());
+    }
+
+    chunks
+}
 
 /// Embedding model wrapper using all-MiniLM-L6-v2.
 pub struct EmbeddingModel {
@@ -154,6 +232,48 @@ fn l2_normalize(embedding: &Tensor) -> Result<Tensor, AppError> {
 mod tests {
     use super::*;
     use crate::db::vectors::EMBEDDING_DIM;
+
+    #[test]
+    fn test_chunk_text_short() {
+        let text = "This is a short text.";
+        let chunks = chunk_text(text, 500, 100);
+        assert_eq!(chunks.len(), 1);
+        assert_eq!(chunks[0], text);
+    }
+
+    #[test]
+    fn test_chunk_text_long() {
+        let text =
+            "First sentence. Second sentence. Third sentence. Fourth sentence. Fifth sentence.";
+        let chunks = chunk_text(text, 40, 10);
+        assert!(
+            chunks.len() > 1,
+            "Expected multiple chunks, got {}",
+            chunks.len()
+        );
+        // Each chunk should be within limits (roughly)
+        for chunk in &chunks {
+            assert!(chunk.len() <= 60, "Chunk too long: {}", chunk.len());
+        }
+    }
+
+    #[test]
+    fn test_chunk_text_preserves_content() {
+        let text = "Sentence one. Sentence two. Sentence three.";
+        let chunks = chunk_text(text, 25, 5);
+        // The original content words should all appear somewhere
+        assert!(chunks.iter().any(|c| c.contains("one")));
+        assert!(chunks.iter().any(|c| c.contains("two")));
+        assert!(chunks.iter().any(|c| c.contains("three")));
+    }
+
+    #[test]
+    fn test_chunk_text_empty() {
+        let text = "";
+        let chunks = chunk_text(text, 500, 100);
+        // Should still return at least one chunk
+        assert!(!chunks.is_empty());
+    }
 
     #[test]
     #[ignore = "Requires model download"]

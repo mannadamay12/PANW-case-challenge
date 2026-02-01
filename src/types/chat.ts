@@ -6,6 +6,14 @@ export interface OllamaStatus {
   error: string | null;
 }
 
+/** Source reference for RAG attribution */
+export interface SourceReference {
+  entry_id: string;
+  date: string;
+  snippet: string;
+  score: number;
+}
+
 /** Safety check result from the backend */
 export interface SafetyResult {
   safe: boolean;
@@ -33,6 +41,12 @@ export interface ChatMessage {
   content: string;
   timestamp: Date;
   isStreaming?: boolean;
+  sources?: SourceReference[];
+}
+
+/** Event payload for chat done with sources */
+export interface ChatDoneEvent {
+  sources?: SourceReference[];
 }
 
 /** Event payload for streaming chat chunks */
@@ -48,6 +62,19 @@ export interface ChatErrorEvent {
 
 /** Convert a database chat message to UI format */
 export function dbMessageToUi(msg: DbChatMessage): ChatMessage {
+  // Parse sources from metadata if present
+  let sources: SourceReference[] | undefined;
+  if (msg.metadata) {
+    try {
+      const parsed = JSON.parse(msg.metadata);
+      if (Array.isArray(parsed)) {
+        sources = parsed;
+      }
+    } catch {
+      // Ignore parsing errors
+    }
+  }
+
   return {
     id: msg.id,
     journalId: msg.journal_id,
@@ -55,5 +82,6 @@ export function dbMessageToUi(msg: DbChatMessage): ChatMessage {
     content: msg.content,
     timestamp: new Date(msg.created_at),
     isStreaming: false,
+    sources,
   };
 }

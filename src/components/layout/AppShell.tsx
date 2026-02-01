@@ -1,33 +1,26 @@
 import { useEffect, useRef } from "react";
-import { PanelLeftClose, PanelLeft, Plus, Archive, MessageCircle, BookOpen, BookTemplate, LayoutDashboard } from "lucide-react";
 import { useUIStore } from "../../stores/ui-store";
 import { useDeleteEntry, useGenerateMissingTitles } from "../../hooks/use-journal";
 import { useOllamaStatus } from "../../hooks/use-chat";
-import { Button } from "../ui/Button";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
-import { SearchBar } from "../journal/SearchBar";
 import { EntryList } from "../journal/EntryList";
 import { Editor } from "../journal/Editor";
-import { ChatView } from "../chat/ChatView";
 import { TemplatesView } from "../templates/TemplatesView";
 import { Dashboard } from "../dashboard";
+import { Titlebar } from "./Titlebar";
 import { cn } from "../../lib/utils";
-import logoImage from "../../assets/logo.png";
 
 export function AppShell() {
   const {
     isSidebarOpen,
-    toggleSidebar,
     isEditorOpen,
     openEditor,
     closeEditor,
-    showArchived,
-    toggleShowArchived,
     deleteConfirmId,
     setDeleteConfirmId,
     setSelectedEntryId,
     activeView,
-    setActiveView,
+    editorContext,
   } = useUIStore();
 
   const deleteMutation = useDeleteEntry();
@@ -65,142 +58,44 @@ export function AppShell() {
   };
 
   return (
-    <div className="h-screen flex bg-sanctuary-bg">
-      {/* Sidebar */}
-      <aside
-        className={cn(
-          "flex flex-col border-r border-sanctuary-border bg-sanctuary-bg transition-all duration-300",
-          isSidebarOpen ? "w-80" : "w-0 overflow-hidden"
-        )}
-      >
-        {/* Sidebar header */}
-        <div className="flex items-center justify-between p-3 border-b border-sanctuary-border">
-          <div className="flex items-center gap-2">
-            <img
-              src={logoImage}
-              alt="MindScribe"
-              className="h-8 w-auto"
-              title="MindScribe"
-            />
+    <div className="h-screen flex flex-col bg-sanctuary-bg">
+      {/* Global Titlebar */}
+      <Titlebar
+        entryId={editorContext?.entryId ?? null}
+        entryType={editorContext?.entryType ?? "reflection"}
+        onChangeEntryType={editorContext?.onChangeEntryType ?? (() => {})}
+        isArchived={editorContext?.isArchived}
+        onArchive={editorContext?.onArchive}
+        onDelete={editorContext?.onDelete}
+        onNewEntry={handleNewEntry}
+      />
+
+      {/* Main content area */}
+      <div className="flex-1 flex min-h-0">
+        {/* Sidebar - just the entry list, no header */}
+        <aside
+          className={cn(
+            "flex flex-col border-r border-sanctuary-border bg-sanctuary-bg transition-all duration-300",
+            isSidebarOpen ? "w-80" : "w-0 overflow-hidden"
+          )}
+        >
+          <div className="flex-1 overflow-y-auto pt-2">
+            <EntryList />
           </div>
-          <div className="flex items-center gap-1">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={handleNewEntry}
-              title="New entry"
-            >
-              <Plus className="h-5 w-5" />
-            </Button>
-            <Button variant="ghost" size="icon" onClick={toggleSidebar}>
-              <PanelLeftClose className="h-5 w-5" />
-            </Button>
-          </div>
-        </div>
+        </aside>
 
-        {/* View tabs */}
-        <div className="flex border-b border-sanctuary-border">
-          <button
-            onClick={() => setActiveView("dashboard")}
-            className={cn(
-              "flex-1 flex items-center justify-center gap-2 py-3 text-sm font-medium transition-colors",
-              activeView === "dashboard"
-                ? "text-sanctuary-accent border-b-2 border-sanctuary-accent"
-                : "text-sanctuary-muted hover:text-sanctuary-text"
-            )}
-          >
-            <LayoutDashboard className="h-4 w-4" />
-            Home
-          </button>
-          <button
-            onClick={() => setActiveView("journal")}
-            className={cn(
-              "flex-1 flex items-center justify-center gap-2 py-3 text-sm font-medium transition-colors",
-              activeView === "journal"
-                ? "text-sanctuary-accent border-b-2 border-sanctuary-accent"
-                : "text-sanctuary-muted hover:text-sanctuary-text"
-            )}
-          >
-            <BookOpen className="h-4 w-4" />
-            Journal
-          </button>
-          <button
-            onClick={() => setActiveView("chat")}
-            className={cn(
-              "flex-1 flex items-center justify-center gap-2 py-3 text-sm font-medium transition-colors",
-              activeView === "chat"
-                ? "text-sanctuary-accent border-b-2 border-sanctuary-accent"
-                : "text-sanctuary-muted hover:text-sanctuary-text"
-            )}
-          >
-            <MessageCircle className="h-4 w-4" />
-            Chat
-          </button>
-          <button
-            onClick={() => setActiveView("library")}
-            className={cn(
-              "flex-1 flex items-center justify-center gap-2 py-3 text-sm font-medium transition-colors",
-              activeView === "library"
-                ? "text-sanctuary-accent border-b-2 border-sanctuary-accent"
-                : "text-sanctuary-muted hover:text-sanctuary-text"
-            )}
-          >
-            <BookTemplate className="h-4 w-4" />
-            Library
-          </button>
-        </div>
-
-        {/* Search */}
-        <div className="px-4 py-3">
-          <SearchBar />
-        </div>
-
-        {/* Filters */}
-        <div className="px-4 pb-4">
-          <label className="flex items-center gap-2 text-sm text-sanctuary-muted cursor-pointer hover:text-sanctuary-text transition-colors">
-            <input
-              type="checkbox"
-              checked={showArchived}
-              onChange={toggleShowArchived}
-              className="rounded border-sanctuary-border text-sanctuary-accent focus:ring-sanctuary-accent"
-            />
-            <Archive className="h-4 w-4" />
-            Show archived
-          </label>
-        </div>
-
-        {/* Entry list */}
-        <div className="flex-1 overflow-y-auto">
-          <EntryList />
-        </div>
-      </aside>
-
-      {/* Main content */}
-      <main className="flex-1 flex flex-col min-w-0">
-        {/* Collapsed sidebar toggle */}
-        {!isSidebarOpen && (
-          <div className="p-2 border-b border-sanctuary-border">
-            <Button variant="ghost" size="icon" onClick={toggleSidebar}>
-              <PanelLeft className="h-5 w-5" />
-            </Button>
-          </div>
-        )}
-
-        {/* Content area */}
-        {activeView === "dashboard" ? (
-          <Dashboard />
-        ) : activeView === "chat" ? (
-          <ChatView />
-        ) : activeView === "library" ? (
-          <TemplatesView />
-        ) : activeView === "journal" && isEditorOpen ? (
-          <Editor />
-        ) : activeView === "journal" ? (
-          <Dashboard />
-        ) : (
-          <Dashboard />
-        )}
-      </main>
+        {/* Main content */}
+        <main className="flex-1 flex flex-col min-w-0">
+          {/* Content area */}
+          {activeView === "library" ? (
+            <TemplatesView />
+          ) : isEditorOpen ? (
+            <Editor />
+          ) : (
+            <Dashboard />
+          )}
+        </main>
+      </div>
 
       {/* Delete confirmation dialog */}
       <ConfirmDialog

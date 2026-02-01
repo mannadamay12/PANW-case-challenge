@@ -75,7 +75,7 @@ export function InlineImage({
     return (
       <div
         className={cn(
-          "inline-flex items-center justify-center bg-stone-100 rounded-lg",
+          "inline-flex items-center justify-center bg-sanctuary-hover rounded-lg",
           "min-h-[100px] min-w-[150px]",
           className
         )}
@@ -89,7 +89,7 @@ export function InlineImage({
     return (
       <div
         className={cn(
-          "inline-flex items-center justify-center gap-2 bg-stone-100 rounded-lg px-4 py-3",
+          "inline-flex items-center justify-center gap-2 bg-sanctuary-hover rounded-lg px-4 py-3",
           "text-sanctuary-muted text-sm",
           className
         )}
@@ -118,8 +118,8 @@ export function InlineImage({
           disabled={isDeleting}
           className={cn(
             "absolute top-2 right-2 p-1.5 rounded-md",
-            "bg-white/90 hover:bg-red-50 text-stone-600 hover:text-red-600",
-            "shadow-sm border border-stone-200",
+            "bg-sanctuary-card/90 hover:bg-red-50 dark:hover:bg-red-950 text-sanctuary-muted hover:text-red-600",
+            "shadow-sm border border-sanctuary-border",
             "transition-colors duration-150",
             isDeleting && "opacity-50 cursor-not-allowed"
           )}

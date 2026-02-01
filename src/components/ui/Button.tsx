@@ -10,9 +10,9 @@ const buttonVariants = cva(
         primary:
           "bg-sanctuary-accent text-white hover:bg-sanctuary-accent-hover",
         secondary:
-          "bg-sanctuary-card border border-sanctuary-border text-sanctuary-text hover:bg-stone-100",
+          "bg-sanctuary-card border border-sanctuary-border text-sanctuary-text hover:bg-sanctuary-hover",
         ghost:
-          "text-sanctuary-muted hover:bg-stone-100 hover:text-sanctuary-text",
+          "text-sanctuary-muted hover:bg-sanctuary-hover hover:text-sanctuary-text",
         danger:
           "bg-red-600 text-white hover:bg-red-700",
       },
