@@ -5,6 +5,7 @@ import type { JournalEntry } from "../../types/journal";
 import { useArchiveEntry } from "../../hooks/use-journal";
 import { useUIStore } from "../../stores/ui-store";
 import { cn } from "../../lib/utils";
+import { EmotionBadges } from "./EmotionBadges";
 
 interface EntryCardProps {
   entry: JournalEntry;
@@ -61,6 +62,9 @@ export function EntryCard({ entry, isSelected }: EntryCardProps) {
         {previewText}
         {hasMore && "..."}
       </p>
+
+      {/* Emotion badges */}
+      <EmotionBadges entryId={entry.id} className="mt-2" />
 
       {/* Actions menu */}
       <div

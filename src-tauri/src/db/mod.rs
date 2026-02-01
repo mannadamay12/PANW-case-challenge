@@ -1,17 +1,20 @@
 pub mod emotions;
 pub mod journals;
 pub mod schema;
+pub mod search;
+pub mod vectors;
 
 use rusqlite::Connection;
 use std::path::Path;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 use crate::error::AppError;
 
 /// Thread-safe database connection wrapper.
-/// Uses a Mutex to ensure single-writer access per SQLite requirements.
+/// Uses Arc<Mutex> to allow cloning for async tasks while ensuring single-writer access.
+#[derive(Clone)]
 pub struct DbPool {
-    conn: Mutex<Connection>,
+    conn: Arc<Mutex<Connection>>,
 }
 
 impl DbPool {
@@ -31,6 +34,15 @@ impl DbPool {
 pub fn init(db_path: &Path) -> Result<DbPool, AppError> {
     log::info!("Initializing database at: {}", db_path.display());
 
+    // Register sqlite-vec extension as auto_extension BEFORE opening connection.
+    // This makes the vec0 virtual table module available for CREATE VIRTUAL TABLE statements.
+    unsafe {
+        rusqlite::ffi::sqlite3_auto_extension(Some(std::mem::transmute(
+            sqlite_vec::sqlite3_vec_init as *const (),
+        )));
+    }
+    log::info!("sqlite-vec extension registered");
+
     let conn = Connection::open(db_path)?;
 
     // Enable WAL mode for concurrent read/write
@@ -42,7 +54,7 @@ pub fn init(db_path: &Path) -> Result<DbPool, AppError> {
     log::info!("Database initialized successfully");
 
     Ok(DbPool {
-        conn: Mutex::new(conn),
+        conn: Arc::new(Mutex::new(conn)),
     })
 }
 
