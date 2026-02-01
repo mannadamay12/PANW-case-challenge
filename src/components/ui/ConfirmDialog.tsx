@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { X } from "@phosphor-icons/react";
 import { Button } from "./Button";
 import { cn } from "../../lib/utils";
+import { useAnimatedPresence } from "../../hooks/use-animated-presence";
 
 interface ConfirmDialogProps {
   isOpen: boolean;
@@ -27,17 +28,18 @@ export function ConfirmDialog({
   isLoading = false,
 }: ConfirmDialogProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const { shouldRender, isAnimating } = useAnimatedPresence(isOpen, 150);
 
   useEffect(() => {
     const dialog = dialogRef.current;
     if (!dialog) return;
 
-    if (isOpen) {
+    if (shouldRender) {
       dialog.showModal();
     } else {
       dialog.close();
     }
-  }, [isOpen]);
+  }, [shouldRender]);
 
   // Close on backdrop click
   const handleBackdropClick = (e: React.MouseEvent<HTMLDialogElement>) => {
@@ -57,7 +59,7 @@ export function ConfirmDialog({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isOpen, onClose]);
 
-  if (!isOpen) return null;
+  if (!shouldRender) return null;
 
   return (
     <dialog
@@ -65,7 +67,7 @@ export function ConfirmDialog({
       onClick={handleBackdropClick}
       className={cn(
         "fixed inset-0 z-50 m-auto max-w-md rounded-lg border border-sanctuary-border bg-sanctuary-card p-0 shadow-xl backdrop:bg-black/50",
-        "open:animate-in open:fade-in-0 open:zoom-in-95"
+        isAnimating ? "animate-scale-in" : "animate-scale-out"
       )}
     >
       <div className="p-6">

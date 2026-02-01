@@ -65,7 +65,7 @@ export function EditorOptionsMenu({
       <button
         onClick={() => setIsOpen(!isOpen)}
         className={cn(
-          "flex items-center gap-1 p-1.5 rounded-md",
+          "flex items-center gap-1 p-1.5 rounded-md cursor-pointer",
           "text-sanctuary-muted hover:text-sanctuary-text hover:bg-sanctuary-hover",
           "transition-colors"
         )}
@@ -80,7 +80,7 @@ export function EditorOptionsMenu({
           <button
             onClick={() => toggleShowTitle()}
             className={cn(
-              "flex w-full items-center justify-between px-3 py-2 text-sm",
+              "flex w-full items-center justify-between px-3 py-2 text-sm cursor-pointer animate-fade-up stagger-1",
               "text-sanctuary-muted hover:bg-sanctuary-hover hover:text-sanctuary-text"
             )}
           >
@@ -92,7 +92,7 @@ export function EditorOptionsMenu({
           <button
             onClick={() => toggleShowWordCount()}
             className={cn(
-              "flex w-full items-center justify-between px-3 py-2 text-sm",
+              "flex w-full items-center justify-between px-3 py-2 text-sm cursor-pointer animate-fade-up stagger-2",
               "text-sanctuary-muted hover:bg-sanctuary-hover hover:text-sanctuary-text"
             )}
           >
@@ -106,7 +106,7 @@ export function EditorOptionsMenu({
               <button
                 onClick={() => setShowDatePicker(!showDatePicker)}
                 className={cn(
-                  "flex w-full items-center gap-2 px-3 py-2 text-sm",
+                  "flex w-full items-center gap-2 px-3 py-2 text-sm cursor-pointer",
                   "text-sanctuary-muted hover:bg-sanctuary-hover hover:text-sanctuary-text"
                 )}
               >
@@ -136,7 +136,7 @@ export function EditorOptionsMenu({
               setIsOpen(false);
             }}
             className={cn(
-              "flex w-full items-center gap-2 px-3 py-2 text-sm",
+              "flex w-full items-center gap-2 px-3 py-2 text-sm cursor-pointer animate-fade-up stagger-3",
               "text-sanctuary-muted hover:bg-sanctuary-hover hover:text-sanctuary-text"
             )}
           >
@@ -152,7 +152,7 @@ export function EditorOptionsMenu({
                 setIsOpen(false);
               }}
               className={cn(
-                "flex w-full items-center gap-2 px-3 py-2 text-sm",
+                "flex w-full items-center gap-2 px-3 py-2 text-sm cursor-pointer animate-fade-up stagger-4",
                 "text-sanctuary-muted hover:bg-sanctuary-hover hover:text-sanctuary-text"
               )}
             >
@@ -165,7 +165,7 @@ export function EditorOptionsMenu({
           <button
             onClick={() => toggleShowArchived()}
             className={cn(
-              "flex w-full items-center justify-between px-3 py-2 text-sm",
+              "flex w-full items-center justify-between px-3 py-2 text-sm cursor-pointer",
               "text-sanctuary-muted hover:bg-sanctuary-hover hover:text-sanctuary-text"
             )}
           >
@@ -188,7 +188,7 @@ export function EditorOptionsMenu({
                     setIsOpen(false);
                   }}
                   className={cn(
-                    "flex w-full items-center gap-2 px-3 py-2 text-sm",
+                    "flex w-full items-center gap-2 px-3 py-2 text-sm cursor-pointer",
                     "text-sanctuary-muted hover:bg-sanctuary-hover hover:text-sanctuary-text"
                   )}
                 >
@@ -205,7 +205,7 @@ export function EditorOptionsMenu({
                     setIsOpen(false);
                   }}
                   className={cn(
-                    "flex w-full items-center gap-2 px-3 py-2 text-sm",
+                    "flex w-full items-center gap-2 px-3 py-2 text-sm cursor-pointer",
                     "text-red-600 hover:bg-red-50 dark:hover:bg-red-950"
                   )}
                 >

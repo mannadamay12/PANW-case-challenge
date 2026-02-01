@@ -68,7 +68,7 @@ export function DatePicker({ value, onChange, onClose }: DatePickerProps) {
       <div className="flex items-center justify-between mb-2">
         <button
           onClick={handlePrevMonth}
-          className="p-1 rounded-md hover:bg-sanctuary-hover text-sanctuary-muted transition-colors"
+          className="p-1 rounded-md hover:bg-sanctuary-hover text-sanctuary-muted transition-colors cursor-pointer"
         >
           <CaretLeft className="h-4 w-4" />
         </button>
@@ -82,7 +82,7 @@ export function DatePicker({ value, onChange, onClose }: DatePickerProps) {
             "p-1 rounded-md transition-colors",
             isSameMonth(currentMonth, today)
               ? "text-sanctuary-border cursor-not-allowed"
-              : "hover:bg-sanctuary-hover text-sanctuary-muted"
+              : "hover:bg-sanctuary-hover text-sanctuary-muted cursor-pointer"
           )}
         >
           <CaretRight className="h-4 w-4" />
@@ -117,8 +117,8 @@ export function DatePicker({ value, onChange, onClose }: DatePickerProps) {
               className={cn(
                 "w-7 h-7 text-sm rounded-full flex items-center justify-center transition-colors",
                 !isCurrentMonth && "text-sanctuary-border",
-                isCurrentMonth && !isSelected && !isFuture && "text-sanctuary-text hover:bg-sanctuary-hover",
-                isSelected && "bg-sanctuary-accent text-white",
+                isCurrentMonth && !isSelected && !isFuture && "text-sanctuary-text hover:bg-sanctuary-hover cursor-pointer",
+                isSelected && "bg-sanctuary-accent text-white cursor-pointer",
                 isToday && !isSelected && "font-bold underline underline-offset-2",
                 isFuture && "cursor-not-allowed text-sanctuary-border"
               )}

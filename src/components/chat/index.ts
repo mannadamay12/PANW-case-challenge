@@ -6,3 +6,8 @@ export { TypingIndicator } from "./TypingIndicator";
 export { SafetyModal } from "./SafetyModal";
 export { DistressBanner } from "./DistressBanner";
 export { OllamaStatusIndicator, OllamaSetupBanner } from "./OllamaStatus";
+export { EmotionPulse } from "./EmotionPulse";
+export { EntryContextHeader } from "./EntryContextHeader";
+export { SourceCard, SourceCardList } from "./SourceCard";
+export { getSmartActions, getDominantCategory } from "./smart-actions";
+export type { QuickAction } from "./smart-actions";
