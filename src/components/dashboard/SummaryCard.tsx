@@ -33,12 +33,10 @@ export function SummaryCard() {
   if (summary) {
     const periodLabel = summary.period === "monthly" ? "Monthly" : "Weekly";
     return (
-      <div className="bg-sanctuary-card border border-sanctuary-border rounded-xl p-5">
+      <div className="bg-sanctuary-card border border-sanctuary-border rounded-xl p-5 animate-fade-up">
         <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-full bg-sanctuary-accent/10 flex items-center justify-center">
-              <Sparkle className="h-4 w-4 text-sanctuary-accent" weight="fill" />
-            </div>
+          <div className="flex items-center gap-3">
+            <Sparkle className="h-6 w-6 text-sanctuary-text" weight="fill" />
             <div>
               <h3 className="text-sm font-medium text-sanctuary-text">
                 {periodLabel} Reflection
@@ -95,7 +93,7 @@ export function SummaryCard() {
   // Show error state
   if (error) {
     return (
-      <div className="bg-sanctuary-card border border-sanctuary-border rounded-xl p-5">
+      <div className="bg-sanctuary-card border border-sanctuary-border rounded-xl p-5 animate-fade-up">
         <div className="flex items-center gap-3 mb-4">
           <div className="w-10 h-10 rounded-full bg-red-500/10 flex items-center justify-center">
             <WarningCircle className="h-5 w-5 text-red-500" />
@@ -121,7 +119,7 @@ export function SummaryCard() {
   // Show loading state
   if (isGenerating) {
     return (
-      <div className="bg-sanctuary-card border border-sanctuary-border rounded-xl p-5">
+      <div className="bg-sanctuary-card border border-sanctuary-border rounded-xl p-5 animate-fade-up">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-full bg-sanctuary-accent/10 flex items-center justify-center">
             <SpinnerGap className="h-5 w-5 text-sanctuary-accent animate-spin" />
@@ -141,14 +139,12 @@ export function SummaryCard() {
 
   // Default: show generate buttons
   return (
-    <div className="bg-sanctuary-card border border-sanctuary-border rounded-xl p-5">
-      <div className="flex items-center gap-2 mb-4">
-        <div className="w-8 h-8 rounded-full bg-sanctuary-accent/10 flex items-center justify-center">
-          <Sparkle className="h-4 w-4 text-sanctuary-accent" weight="fill" />
-        </div>
+    <div className="bg-sanctuary-card border border-sanctuary-border rounded-xl p-5 animate-fade-up">
+      <div className="flex items-center gap-3 mb-4">
+        <Sparkle className="h-6 w-6 text-sanctuary-text" weight="fill" />
         <div>
-          <h3 className="text-sm font-medium text-sanctuary-text">AI Reflection</h3>
-          <p className="text-xs text-sanctuary-muted">
+          <h3 className="text-xs font-medium text-sanctuary-muted uppercase tracking-wider">At a Glance</h3>
+          <p className="text-xs text-sanctuary-muted mt-1">
             Get insights from your journal entries
           </p>
         </div>
@@ -181,10 +177,10 @@ function SummaryButton({ label, icon, onClick }: SummaryButtonProps) {
     <button
       onClick={onClick}
       className={cn(
-        "flex items-center gap-2 px-3 py-2 rounded-lg text-sm",
+        "flex items-center gap-2 px-3 py-2 rounded-lg text-sm cursor-pointer",
         "bg-sanctuary-hover border border-sanctuary-border",
         "text-sanctuary-text hover:bg-sanctuary-accent/10 hover:border-sanctuary-accent/30",
-        "transition-colors"
+        "transition-all active:scale-[0.98]"
       )}
     >
       {icon}

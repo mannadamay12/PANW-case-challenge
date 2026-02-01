@@ -3,6 +3,7 @@ import { X } from "@phosphor-icons/react";
 import { Button } from "../ui/Button";
 import { IconPicker, TemplateIcon } from "./IconPicker";
 import { cn } from "../../lib/utils";
+import { useAnimatedPresence } from "../../hooks/use-animated-presence";
 import type { TemplateCategory } from "../../types/templates";
 import {
   useCreateTemplate,
@@ -19,6 +20,7 @@ interface TemplateModalProps {
 
 export function TemplateModal({ isOpen, onClose, editingId, defaultCategory = "reflection" }: TemplateModalProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const { shouldRender, isAnimating } = useAnimatedPresence(isOpen, 150);
 
   const { data: existingTemplate } = useTemplate(editingId);
   const createMutation = useCreateTemplate();
@@ -55,12 +57,12 @@ export function TemplateModal({ isOpen, onClose, editingId, defaultCategory = "r
     const dialog = dialogRef.current;
     if (!dialog) return;
 
-    if (isOpen) {
+    if (shouldRender) {
       dialog.showModal();
     } else {
       dialog.close();
     }
-  }, [isOpen]);
+  }, [shouldRender]);
 
   // Close on backdrop click
   const handleBackdropClick = (e: React.MouseEvent<HTMLDialogElement>) => {
@@ -109,7 +111,7 @@ export function TemplateModal({ isOpen, onClose, editingId, defaultCategory = "r
 
   const isLoading = createMutation.isPending || updateMutation.isPending;
 
-  if (!isOpen) return null;
+  if (!shouldRender) return null;
 
   return (
     <dialog
@@ -117,7 +119,7 @@ export function TemplateModal({ isOpen, onClose, editingId, defaultCategory = "r
       onClick={handleBackdropClick}
       className={cn(
         "fixed inset-0 z-50 m-auto max-w-md w-full rounded-2xl border border-sanctuary-border bg-sanctuary-card p-0 shadow-xl backdrop:bg-black/50",
-        "open:animate-in open:fade-in-0 open:zoom-in-95"
+        isAnimating ? "animate-scale-in" : "animate-scale-out"
       )}
     >
       <form onSubmit={handleSubmit}>

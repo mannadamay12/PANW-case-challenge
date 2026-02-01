@@ -9,11 +9,12 @@ interface TemplateGridProps {
 export function TemplateGrid({ templates, onUse }: TemplateGridProps) {
   return (
     <div className="grid grid-cols-2 gap-4">
-      {templates.map((template) => (
+      {templates.map((template, index) => (
         <TemplateCard
           key={template.id}
           template={template}
           onUse={onUse}
+          animationDelay={index * 50}
         />
       ))}
     </div>

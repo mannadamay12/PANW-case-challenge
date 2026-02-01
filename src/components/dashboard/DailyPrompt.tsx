@@ -1,8 +1,9 @@
-import { Lightbulb, CaretRight } from "@phosphor-icons/react";
+import { Lightbulb, CaretRight, SquaresFour } from "@phosphor-icons/react";
 import { Button } from "../ui/Button";
 
 interface DailyPromptProps {
   onStartWriting: (prompt: string) => void;
+  onExploreGallery: () => void;
 }
 
 // A collection of thoughtful journaling prompts
@@ -49,31 +50,40 @@ function getDailyPrompt(): string {
   return PROMPTS[dayOfYear % PROMPTS.length];
 }
 
-export function DailyPrompt({ onStartWriting }: DailyPromptProps) {
+export function DailyPrompt({ onStartWriting, onExploreGallery }: DailyPromptProps) {
   const prompt = getDailyPrompt();
 
   return (
-    <div className="bg-gradient-to-br from-sanctuary-accent/5 to-sanctuary-accent/10 border border-sanctuary-accent/20 rounded-xl p-4">
-      <div className="flex items-center gap-2 mb-3">
-        <div className="w-8 h-8 rounded-full bg-sanctuary-accent/20 flex items-center justify-center">
-          <Lightbulb className="h-4 w-4 text-sanctuary-accent" />
-        </div>
-        <h3 className="text-sm font-medium text-sanctuary-text">Daily Prompt</h3>
+    <div className="bg-gradient-to-br from-sanctuary-accent/5 to-sanctuary-accent/10 border border-sanctuary-accent/20 rounded-xl p-4 transition-colors hover:border-sanctuary-accent/40">
+      <div className="flex items-center gap-3 mb-3">
+        <Lightbulb className="h-6 w-6 text-sanctuary-text" weight="fill" />
+        <h3 className="text-xs font-medium text-sanctuary-muted uppercase tracking-wider">Daily Prompt</h3>
       </div>
 
       <p className="text-sanctuary-text font-medium mb-4 leading-relaxed">
         "{prompt}"
       </p>
 
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={() => onStartWriting(prompt)}
-        className="text-sanctuary-accent hover:text-sanctuary-accent hover:bg-sanctuary-accent/10"
-      >
-        Start Writing
-        <CaretRight className="h-4 w-4 ml-1" />
-      </Button>
+      <div className="flex items-center gap-2">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => onStartWriting(prompt)}
+          className="text-sanctuary-accent hover:text-sanctuary-accent hover:bg-sanctuary-accent/10"
+        >
+          Start Writing
+          <CaretRight className="h-4 w-4 ml-1" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onExploreGallery}
+          className="text-sanctuary-muted hover:text-sanctuary-muted hover:bg-sanctuary-muted/10"
+        >
+          Explore Gallery
+          <SquaresFour className="h-4 w-4 ml-1" />
+        </Button>
+      </div>
     </div>
   );
 }

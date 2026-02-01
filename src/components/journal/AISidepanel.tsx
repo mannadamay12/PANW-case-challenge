@@ -1,14 +1,18 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
-import { PaperPlaneRight, Sparkle, X, Lightbulb, ArrowsOut, ArrowClockwise } from "@phosphor-icons/react";
+import { PaperPlaneRight, Sparkle, X } from "@phosphor-icons/react";
 import { Button } from "../ui/Button";
 import { cn } from "../../lib/utils";
 import { useUIStore } from "../../stores/ui-store";
 import { useChatStore } from "../../stores/chat-store";
 import { useEntryMessages, useEntryChatStream, useOllamaStatus } from "../../hooks/use-chat";
+import { useEntryEmotions } from "../../hooks/use-ml";
 import { useAnimatedPresence } from "../../hooks/use-animated-presence";
 import { SafetyModal } from "../chat/SafetyModal";
 import { DistressBanner } from "../chat/DistressBanner";
-import type { ChatMessage } from "../../types/chat";
+import { EmotionPulse } from "../chat/EmotionPulse";
+import { EntryContextHeader } from "../chat/EntryContextHeader";
+import { MessageBubble } from "../chat/MessageBubble";
+import { getSmartActions } from "../chat/smart-actions";
 
 interface AISidepanelProps {
   journalId: string | null;
@@ -16,21 +20,18 @@ interface AISidepanelProps {
   entryContent?: string;
 }
 
-/** Quick action buttons for common AI interactions */
-const QUICK_ACTIONS = [
-  { label: "Reflect", prompt: "What emotions do you notice in this entry?", icon: Lightbulb },
-  { label: "Expand", prompt: "Help me expand on these thoughts", icon: ArrowsOut },
-  { label: "Reframe", prompt: "How might I reframe this situation positively?", icon: ArrowClockwise },
-];
-
 export function AISidepanel({ journalId, entryContent: _entryContent }: AISidepanelProps) {
   const { isAIPanelOpen, setAIPanelOpen } = useUIStore();
   const { shouldRender, isAnimating } = useAnimatedPresence(isAIPanelOpen, 200);
   const { messages, isLoading } = useEntryMessages(journalId);
   const { sendMessage, isStreaming } = useEntryChatStream(journalId);
   const { data: ollamaStatus } = useOllamaStatus();
+  const { data: emotions } = useEntryEmotions(journalId);
   const getPendingMessage = useChatStore((s) => s.getPendingMessage);
   const setPendingMessage = useChatStore((s) => s.setPendingMessage);
+
+  // Get emotion-aware quick actions
+  const quickActions = getSmartActions(emotions);
 
   const [input, setInput] = useState(() => getPendingMessage(journalId));
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -93,33 +94,42 @@ export function AISidepanel({ journalId, entryContent: _entryContent }: AISidepa
       <div className="flex items-center justify-between px-3 py-2 border-b border-sanctuary-border">
         <div className="flex items-center gap-2">
           <Sparkle className="h-4 w-4 text-sanctuary-accent" />
-          <h3 className="font-medium text-sanctuary-text text-sm">AI Companion</h3>
+          <h3 className="font-medium text-sanctuary-text text-sm">MindScribe Companion</h3>
         </div>
         <Button
           variant="ghost"
           size="icon"
           onClick={() => setAIPanelOpen(false)}
-          className="h-7 w-7"
+          className="h-7 w-7 cursor-pointer"
         >
           <X className="h-4 w-4" />
         </Button>
       </div>
 
-      {/* Quick Actions */}
+      {/* Entry Context - header + emotions as one unit */}
+      {journalId && (
+        <div className="border-b border-sanctuary-border">
+          <EntryContextHeader journalId={journalId} />
+          <EmotionPulse journalId={journalId} className="pt-0" />
+        </div>
+      )}
+
+      {/* Quick Actions - emotion-aware */}
       {isReady && (
         <div className="p-2 border-b border-sanctuary-border">
           <div className="flex gap-1.5 flex-wrap">
-            {QUICK_ACTIONS.map((action) => (
+            {quickActions.map((action) => (
               <button
                 key={action.label}
                 onClick={() => handleQuickAction(action.prompt)}
                 disabled={isStreaming}
+                style={{ cursor: "pointer" }}
                 className={cn(
                   "flex items-center gap-1 px-2 py-1 text-xs rounded-full",
                   "bg-sanctuary-card border border-sanctuary-border",
-                  "hover:bg-sanctuary-accent/10 hover:border-sanctuary-accent/30",
+                  "hover:bg-sanctuary-accent/10 hover:border-sanctuary-accent/30 hover:shadow-sm",
                   "text-sanctuary-muted hover:text-sanctuary-text",
-                  "transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  "transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
                 )}
               >
                 <action.icon className="h-3 w-3" />
@@ -161,7 +171,7 @@ export function AISidepanel({ journalId, entryContent: _entryContent }: AISidepa
         )}
 
         {messages.map((message) => (
-          <MessageBubble key={message.id} message={message} />
+          <MessageBubble key={message.id} message={message} compact />
         ))}
         <div ref={messagesEndRef} />
       </div>
@@ -200,43 +210,6 @@ export function AISidepanel({ journalId, entryContent: _entryContent }: AISidepa
 
       {/* Safety Modal */}
       <SafetyModal />
-    </div>
-  );
-}
-
-/** Compact message bubble for the sidepanel */
-function MessageBubble({ message }: { message: ChatMessage }) {
-  const isUser = message.role === "user";
-
-  return (
-    <div
-      className={cn(
-        "flex w-full animate-slide-up",
-        isUser ? "justify-end" : "justify-start"
-      )}
-    >
-      <div
-        className={cn(
-          "max-w-[90%] rounded-xl px-3 py-2",
-          isUser
-            ? "bg-sanctuary-accent text-white rounded-br-sm"
-            : "bg-sanctuary-card border border-sanctuary-border text-sanctuary-text rounded-bl-sm",
-          message.isStreaming && "animate-pulse"
-        )}
-      >
-        <div className="whitespace-pre-wrap break-words text-sm leading-relaxed">
-          {message.content || (message.isStreaming && (
-            <span className="flex items-center gap-1.5 text-sanctuary-muted">
-              <span className="flex gap-0.5">
-                <span className="w-1.5 h-1.5 bg-sanctuary-muted rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
-                <span className="w-1.5 h-1.5 bg-sanctuary-muted rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
-                <span className="w-1.5 h-1.5 bg-sanctuary-muted rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
-              </span>
-              <span className="italic">Thinking...</span>
-            </span>
-          ))}
-        </div>
-      </div>
     </div>
   );
 }

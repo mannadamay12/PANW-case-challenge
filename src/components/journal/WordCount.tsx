@@ -11,12 +11,10 @@ export function WordCount({ content, className }: WordCountProps) {
     .split(/\s+/)
     .filter(Boolean).length;
 
-  const chars = content.length;
   const readingTime = Math.ceil(words / 200);
 
   const parts: string[] = [
     `${words.toLocaleString()} ${words === 1 ? "word" : "words"}`,
-    `${chars.toLocaleString()} chars`,
   ];
 
   if (words >= 50) {

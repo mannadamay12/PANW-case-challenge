@@ -574,15 +574,17 @@ export function Editor() {
                 <span>{imageError}</span>
               </div>
             )}
-
-            {/* Word count (conditionally shown) */}
-            {showWordCount && (
-              <div className="mt-8 flex justify-end">
-                <WordCount content={content} />
-              </div>
-            )}
           </div>
         </div>
+
+        {/* Word count footer */}
+        {showWordCount && (
+          <div className="sticky bottom-0 px-4 py-2 bg-gradient-to-t from-sanctuary-card via-sanctuary-card to-transparent">
+            <div className="max-w-[65ch] mx-auto flex justify-end">
+              <WordCount content={content} />
+            </div>
+          </div>
+        )}
       </div>
 
       {/* AI Sidepanel */}

@@ -3,6 +3,7 @@ import { Heart, Phone, X } from "@phosphor-icons/react";
 import { Button } from "../ui/Button";
 import { useChatStore } from "../../stores/chat-store";
 import { cn } from "../../lib/utils";
+import { useAnimatedPresence } from "../../hooks/use-animated-presence";
 
 export function SafetyModal() {
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -12,17 +13,18 @@ export function SafetyModal() {
   const setSafetyWarning = useChatStore((state) => state.setSafetyWarning);
 
   const isOpen = showSafetyModal && safetyWarning?.level === "crisis";
+  const { shouldRender, isAnimating } = useAnimatedPresence(isOpen, 150);
 
   useEffect(() => {
     const dialog = dialogRef.current;
     if (!dialog) return;
 
-    if (isOpen) {
+    if (shouldRender) {
       dialog.showModal();
     } else {
       dialog.close();
     }
-  }, [isOpen]);
+  }, [shouldRender]);
 
   const handleClose = () => {
     setShowSafetyModal(false);
@@ -36,7 +38,7 @@ export function SafetyModal() {
     }
   };
 
-  if (!isOpen) return null;
+  if (!shouldRender) return null;
 
   return (
     <dialog
@@ -44,14 +46,14 @@ export function SafetyModal() {
       onClick={handleBackdropClick}
       className={cn(
         "fixed inset-0 z-50 m-auto max-w-lg rounded-xl border border-sanctuary-border bg-sanctuary-card p-0 shadow-xl backdrop:bg-black/60",
-        "open:animate-in open:fade-in-0 open:zoom-in-95"
+        isAnimating ? "animate-scale-in" : "animate-scale-out"
       )}
     >
       <div className="p-6">
         {/* Header */}
         <div className="flex items-start gap-4 mb-6">
-          <div className="p-3 rounded-full bg-red-100">
-            <Heart className="h-6 w-6 text-red-600" />
+          <div className="p-3 rounded-full bg-red-100 dark:bg-red-950/50">
+            <Heart className="h-6 w-6 text-red-600 dark:text-red-400" />
           </div>
           <div className="flex-1">
             <h2 className="text-xl font-semibold text-sanctuary-text mb-1">
@@ -63,7 +65,7 @@ export function SafetyModal() {
           </div>
           <button
             onClick={handleClose}
-            className="text-sanctuary-muted hover:text-sanctuary-text transition-colors"
+            className="text-sanctuary-muted hover:text-sanctuary-text transition-colors cursor-pointer"
           >
             <X className="h-5 w-5" />
           </button>
