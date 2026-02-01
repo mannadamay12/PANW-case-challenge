@@ -76,9 +76,7 @@ pub fn create(
         return Err(AppError::InvalidInput("Title cannot be empty".to_string()));
     }
     if prompt.trim().is_empty() {
-        return Err(AppError::InvalidInput(
-            "Prompt cannot be empty".to_string(),
-        ));
+        return Err(AppError::InvalidInput("Prompt cannot be empty".to_string()));
     }
 
     let id = uuid::Uuid::new_v4().to_string();
@@ -228,9 +226,7 @@ pub fn update(
     }
     if let Some(p) = prompt {
         if p.trim().is_empty() {
-            return Err(AppError::InvalidInput(
-                "Prompt cannot be empty".to_string(),
-            ));
+            return Err(AppError::InvalidInput("Prompt cannot be empty".to_string()));
         }
     }
 
@@ -238,8 +234,7 @@ pub fn update(
 
     // Build dynamic update query
     let mut updates = vec!["updated_at = ?1"];
-    let mut params_vec: Vec<Box<dyn rusqlite::ToSql>> =
-        vec![Box::new(now.to_rfc3339())];
+    let mut params_vec: Vec<Box<dyn rusqlite::ToSql>> = vec![Box::new(now.to_rfc3339())];
 
     if let Some(t) = title {
         updates.push("title = ?");
@@ -311,8 +306,7 @@ pub fn delete(conn: &Connection, id: &str) -> Result<DeleteTemplateResponse, App
         ));
     }
 
-    let rows_affected =
-        conn.execute("DELETE FROM journal_templates WHERE id = ?1", params![id])?;
+    let rows_affected = conn.execute("DELETE FROM journal_templates WHERE id = ?1", params![id])?;
 
     if rows_affected == 0 {
         return Err(AppError::NotFound(format!("Template not found: {}", id)));
@@ -386,27 +380,38 @@ mod tests {
     fn test_list_templates() {
         let conn = setup_test_db();
 
+        // 8 default templates are seeded by migrations
+        let initial_count = list(&conn).unwrap().len();
+        assert!(
+            initial_count >= 8,
+            "Should have at least 8 default templates"
+        );
+
         create(&conn, "T1", "P1", "Text1", None, "growth").unwrap();
         create(&conn, "T2", "P2", "Text2", None, "mindfulness").unwrap();
         create(&conn, "T3", "P3", "Text3", None, "morning").unwrap();
 
         let templates = list(&conn).unwrap();
-        assert_eq!(templates.len(), 3);
+        assert_eq!(templates.len(), initial_count + 3);
     }
 
     #[test]
     fn test_list_by_category() {
         let conn = setup_test_db();
 
+        // Get baseline counts (includes seeded defaults)
+        let initial_growth = list_by_category(&conn, "growth").unwrap().len();
+        let initial_mindfulness = list_by_category(&conn, "mindfulness").unwrap().len();
+
         create(&conn, "T1", "P1", "Text1", None, "growth").unwrap();
         create(&conn, "T2", "P2", "Text2", None, "growth").unwrap();
         create(&conn, "T3", "P3", "Text3", None, "mindfulness").unwrap();
 
         let growth = list_by_category(&conn, "growth").unwrap();
-        assert_eq!(growth.len(), 2);
+        assert_eq!(growth.len(), initial_growth + 2);
 
         let mindfulness = list_by_category(&conn, "mindfulness").unwrap();
-        assert_eq!(mindfulness.len(), 1);
+        assert_eq!(mindfulness.len(), initial_mindfulness + 1);
     }
 
     #[test]

@@ -61,6 +61,34 @@ pub fn run_migrations(conn: &Connection) -> Result<(), AppError> {
         );
         CREATE INDEX IF NOT EXISTS idx_templates_is_default ON journal_templates(is_default);
         CREATE INDEX IF NOT EXISTS idx_templates_category ON journal_templates(category);
+
+        -- Entry images table for inline image attachments
+        CREATE TABLE IF NOT EXISTS entry_images (
+            id TEXT PRIMARY KEY,
+            entry_id TEXT NOT NULL,
+            filename TEXT NOT NULL,
+            relative_path TEXT NOT NULL,
+            mime_type TEXT,
+            file_size INTEGER,
+            width INTEGER,
+            height INTEGER,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(entry_id) REFERENCES journals(id) ON DELETE CASCADE
+        );
+        CREATE INDEX IF NOT EXISTS idx_entry_images_entry_id ON entry_images(entry_id);
+
+        -- Chat messages for AI companion (per-entry conversation history)
+        CREATE TABLE IF NOT EXISTS chat_messages (
+            id TEXT PRIMARY KEY,
+            journal_id TEXT NOT NULL,
+            role TEXT NOT NULL,
+            content TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            metadata TEXT,
+            FOREIGN KEY(journal_id) REFERENCES journals(id) ON DELETE CASCADE
+        );
+        CREATE INDEX IF NOT EXISTS idx_chat_messages_journal ON chat_messages(journal_id);
+        CREATE INDEX IF NOT EXISTS idx_chat_messages_created ON chat_messages(created_at);
         "#,
     )?;
 

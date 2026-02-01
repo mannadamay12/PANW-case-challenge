@@ -1,6 +1,8 @@
 import { useRef, useCallback, useEffect } from "react";
 import type { EntryType } from "../types/journal";
 
+export type SaveStatus = "idle" | "pending" | "saving" | "saved" | "error";
+
 export interface SaveData {
   content: string;
   title?: string;
@@ -17,6 +19,7 @@ interface UseDebouncedSaveOptions {
   delay: number;
   onSaveNew: (data: SaveData) => Promise<string | void>;
   onSaveExisting: (entryId: string, data: SaveData) => Promise<void>;
+  onStatusChange?: (status: SaveStatus) => void;
 }
 
 interface UseDebouncedSaveResult {
@@ -35,15 +38,35 @@ export function useDebouncedSave({
   delay,
   onSaveNew,
   onSaveExisting,
+  onStatusChange,
 }: UseDebouncedSaveOptions): UseDebouncedSaveResult {
   const pendingRef = useRef<PendingWrite | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hasPendingRef = useRef(false);
+  const statusRef = useRef<SaveStatus>("idle");
+
+  const setStatus = useCallback(
+    (status: SaveStatus) => {
+      if (statusRef.current !== status) {
+        statusRef.current = status;
+        onStatusChange?.(status);
+      }
+    },
+    [onStatusChange]
+  );
 
   const clearTimer = useCallback(() => {
     if (timerRef.current) {
       clearTimeout(timerRef.current);
       timerRef.current = null;
+    }
+  }, []);
+
+  const clearSavedTimer = useCallback(() => {
+    if (savedTimerRef.current) {
+      clearTimeout(savedTimerRef.current);
+      savedTimerRef.current = null;
     }
   }, []);
 
@@ -59,7 +82,12 @@ export function useDebouncedSave({
     clearTimer();
 
     // Skip empty content
-    if (!data.content.trim()) return;
+    if (!data.content.trim()) {
+      setStatus("idle");
+      return;
+    }
+
+    setStatus("saving");
 
     try {
       if (isNewEntry) {
@@ -67,17 +95,26 @@ export function useDebouncedSave({
       } else if (entryId) {
         await onSaveExisting(entryId, data);
       }
+      setStatus("saved");
+
+      // Auto-transition from "saved" to "idle" after 2 seconds
+      clearSavedTimer();
+      savedTimerRef.current = setTimeout(() => {
+        setStatus("idle");
+      }, 2000);
     } catch (error) {
       console.error("Debounced save failed:", error);
+      setStatus("error");
       throw error;
     }
-  }, [onSaveNew, onSaveExisting, clearTimer]);
+  }, [onSaveNew, onSaveExisting, clearTimer, clearSavedTimer, setStatus]);
 
   const scheduleWrite = useCallback(
     (data: SaveData, entryId: string | null, isNewEntry: boolean) => {
       // Capture the entry context at typing time
       pendingRef.current = { data, entryId, isNewEntry };
       hasPendingRef.current = true;
+      setStatus("pending");
 
       // Reset the debounce timer
       clearTimer();
@@ -85,7 +122,7 @@ export function useDebouncedSave({
         executeSave();
       }, delay);
     },
-    [delay, clearTimer, executeSave]
+    [delay, clearTimer, executeSave, setStatus]
   );
 
   const flushNow = useCallback(async () => {
@@ -97,14 +134,16 @@ export function useDebouncedSave({
     clearTimer();
     pendingRef.current = null;
     hasPendingRef.current = false;
-  }, [clearTimer]);
+    setStatus("idle");
+  }, [clearTimer, setStatus]);
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
       clearTimer();
+      clearSavedTimer();
     };
-  }, [clearTimer]);
+  }, [clearTimer, clearSavedTimer]);
 
   return {
     scheduleWrite,

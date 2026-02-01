@@ -42,3 +42,15 @@ export interface UpdateEntryParams {
   title?: string;
   entry_type?: EntryType;
 }
+
+export interface EntryImage {
+  id: string;
+  entry_id: string;
+  filename: string;
+  relative_path: string;
+  mime_type: string | null;
+  file_size: number | null;
+  width: number | null;
+  height: number | null;
+  created_at: string;
+}

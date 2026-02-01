@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Datelike, Local, NaiveDate, Utc};
 use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 
@@ -407,6 +407,278 @@ fn parse_datetime(s: String) -> DateTime<Utc> {
             );
             Utc::now()
         })
+}
+
+/// Stats for the journal dashboard.
+#[derive(Debug, Serialize)]
+pub struct JournalStats {
+    pub total_entries: i64,
+    pub streak_days: i64,
+    pub entries_this_week: i64,
+    pub entries_this_month: i64,
+}
+
+/// Extended streak information for the dashboard.
+#[derive(Debug, Serialize)]
+pub struct StreakInfo {
+    pub current_streak: u32,
+    pub longest_streak: u32,
+    pub last_entry_date: Option<String>,
+    pub entries_this_week: Vec<String>,
+}
+
+/// Emotion summary for a single day.
+#[derive(Debug, Serialize)]
+pub struct DayEmotions {
+    pub date: String,
+    pub dominant_emotion: Option<String>,
+    pub entry_count: u32,
+}
+
+/// Get journal statistics for the dashboard.
+pub fn get_stats(conn: &Connection) -> Result<JournalStats, AppError> {
+    // Total count (excluding archived)
+    let total_entries: i64 = conn.query_row(
+        "SELECT COUNT(*) FROM journals WHERE is_archived = 0",
+        [],
+        |row| row.get(0),
+    )?;
+
+    // Entries this week (Sunday start)
+    let entries_this_week: i64 = conn.query_row(
+        "SELECT COUNT(*) FROM journals
+         WHERE is_archived = 0
+         AND created_at >= date('now', 'weekday 0', '-7 days')",
+        [],
+        |row| row.get(0),
+    )?;
+
+    // Entries this month
+    let entries_this_month: i64 = conn.query_row(
+        "SELECT COUNT(*) FROM journals
+         WHERE is_archived = 0
+         AND created_at >= date('now', 'start of month')",
+        [],
+        |row| row.get(0),
+    )?;
+
+    // Streak: consecutive days with entries ending today or yesterday
+    let streak_days = calculate_streak(conn)?;
+
+    Ok(JournalStats {
+        total_entries,
+        streak_days,
+        entries_this_week,
+        entries_this_month,
+    })
+}
+
+/// Calculate the current journaling streak.
+/// Streak is the number of consecutive days with at least one entry,
+/// ending today or yesterday.
+fn calculate_streak(conn: &Connection) -> Result<i64, AppError> {
+    // Get distinct dates with entries, ordered descending
+    let mut stmt = conn.prepare(
+        "SELECT DISTINCT date(created_at) as entry_date
+         FROM journals
+         WHERE is_archived = 0
+         ORDER BY entry_date DESC
+         LIMIT 365",
+    )?;
+
+    let dates: Vec<String> = stmt
+        .query_map([], |row| row.get(0))?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    if dates.is_empty() {
+        return Ok(0);
+    }
+
+    let today = Local::now().date_naive();
+    let yesterday = today - chrono::Duration::days(1);
+
+    // Parse first date
+    let first_date = NaiveDate::parse_from_str(&dates[0], "%Y-%m-%d")
+        .map_err(|_| AppError::InvalidInput("Invalid date format".to_string()))?;
+
+    // Streak must start from today or yesterday
+    if first_date != today && first_date != yesterday {
+        return Ok(0);
+    }
+
+    let mut streak = 1i64;
+    for i in 1..dates.len() {
+        let current = NaiveDate::parse_from_str(&dates[i - 1], "%Y-%m-%d").ok();
+        let previous = NaiveDate::parse_from_str(&dates[i], "%Y-%m-%d").ok();
+
+        match (current, previous) {
+            (Some(c), Some(p)) if c - p == chrono::Duration::days(1) => streak += 1,
+            _ => break,
+        }
+    }
+
+    Ok(streak)
+}
+
+/// Get extended streak information for the dashboard.
+pub fn get_streak_info(conn: &Connection) -> Result<StreakInfo, AppError> {
+    // Get distinct dates with entries, ordered descending
+    let mut stmt = conn.prepare(
+        "SELECT DISTINCT date(created_at) as entry_date
+         FROM journals
+         WHERE is_archived = 0
+         ORDER BY entry_date DESC
+         LIMIT 365",
+    )?;
+
+    let dates: Vec<String> = stmt
+        .query_map([], |row| row.get(0))?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    let today = Local::now().date_naive();
+    let yesterday = today - chrono::Duration::days(1);
+
+    // Calculate current streak
+    let current_streak = if dates.is_empty() {
+        0
+    } else {
+        let first_date = NaiveDate::parse_from_str(&dates[0], "%Y-%m-%d").ok();
+        if first_date != Some(today) && first_date != Some(yesterday) {
+            0
+        } else {
+            let mut streak = 1u32;
+            for i in 1..dates.len() {
+                let current = NaiveDate::parse_from_str(&dates[i - 1], "%Y-%m-%d").ok();
+                let previous = NaiveDate::parse_from_str(&dates[i], "%Y-%m-%d").ok();
+                match (current, previous) {
+                    (Some(c), Some(p)) if c - p == chrono::Duration::days(1) => streak += 1,
+                    _ => break,
+                }
+            }
+            streak
+        }
+    };
+
+    // Calculate longest streak
+    let longest_streak = calculate_longest_streak(&dates);
+
+    // Last entry date
+    let last_entry_date = dates.first().cloned();
+
+    // Get dates with entries this week (Sunday to Saturday)
+    let week_start = today - chrono::Duration::days(today.weekday().num_days_from_sunday() as i64);
+    let entries_this_week: Vec<String> = dates
+        .iter()
+        .filter_map(|d| {
+            let date = NaiveDate::parse_from_str(d, "%Y-%m-%d").ok()?;
+            if date >= week_start && date <= today {
+                Some(d.clone())
+            } else {
+                None
+            }
+        })
+        .collect();
+
+    Ok(StreakInfo {
+        current_streak,
+        longest_streak,
+        last_entry_date,
+        entries_this_week,
+    })
+}
+
+/// Calculate the longest streak from a list of dates (descending order).
+fn calculate_longest_streak(dates: &[String]) -> u32 {
+    if dates.is_empty() {
+        return 0;
+    }
+
+    let mut longest = 1u32;
+    let mut current = 1u32;
+
+    for i in 1..dates.len() {
+        let prev = NaiveDate::parse_from_str(&dates[i - 1], "%Y-%m-%d").ok();
+        let curr = NaiveDate::parse_from_str(&dates[i], "%Y-%m-%d").ok();
+
+        match (prev, curr) {
+            (Some(p), Some(c)) if p - c == chrono::Duration::days(1) => {
+                current += 1;
+                if current > longest {
+                    longest = current;
+                }
+            }
+            _ => {
+                current = 1;
+            }
+        }
+    }
+
+    longest
+}
+
+/// Get entries from the same date in previous years ("On This Day").
+pub fn get_on_this_day(conn: &Connection) -> Result<Vec<Journal>, AppError> {
+    let today = Local::now().date_naive();
+    let month_day = today.format("%m-%d").to_string();
+
+    let mut stmt = conn.prepare(
+        "SELECT id, content, title, entry_type, created_at, updated_at, is_archived
+         FROM journals
+         WHERE is_archived = 0
+         AND strftime('%m-%d', created_at) = ?1
+         AND date(created_at) < date('now')
+         ORDER BY created_at DESC
+         LIMIT 10",
+    )?;
+
+    let journals: Vec<Journal> = stmt
+        .query_map(params![month_day], |row| {
+            let entry_type_str: Option<String> = row.get(3)?;
+            Ok(Journal {
+                id: row.get(0)?,
+                content: row.get(1)?,
+                title: row.get(2)?,
+                entry_type: entry_type_str
+                    .as_deref()
+                    .unwrap_or_default()
+                    .parse()
+                    .unwrap_or_default(),
+                created_at: parse_datetime(row.get::<_, String>(4)?),
+                updated_at: parse_datetime(row.get::<_, String>(5)?),
+                is_archived: row.get(6)?,
+            })
+        })?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    Ok(journals)
+}
+
+/// Get entries within a date range with their dates (for calendar display).
+pub fn list_entries_by_date_range(
+    conn: &Connection,
+    start_date: &str,
+    end_date: &str,
+) -> Result<Vec<(String, String)>, AppError> {
+    let mut stmt = conn.prepare(
+        "SELECT id, date(created_at) as entry_date
+         FROM journals
+         WHERE is_archived = 0
+         AND date(created_at) >= ?1
+         AND date(created_at) <= ?2
+         ORDER BY created_at DESC",
+    )?;
+
+    let entries: Vec<(String, String)> = stmt
+        .query_map(params![start_date, end_date], |row| {
+            Ok((row.get(0)?, row.get(1)?))
+        })?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    Ok(entries)
 }
 
 #[cfg(test)]

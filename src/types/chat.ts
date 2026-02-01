@@ -15,9 +15,20 @@ export interface SafetyResult {
 
 export type SafetyLevel = "safe" | "distress" | "crisis";
 
-/** Chat message in the conversation */
+/** Chat message stored in the database (from backend) */
+export interface DbChatMessage {
+  id: string;
+  journal_id: string;
+  role: "user" | "assistant";
+  content: string;
+  created_at: string;
+  metadata: string | null;
+}
+
+/** Chat message in the UI (with local state) */
 export interface ChatMessage {
   id: string;
+  journalId: string | null;
   role: "user" | "assistant";
   content: string;
   timestamp: Date;
@@ -33,4 +44,16 @@ export interface ChatChunkEvent {
 /** Event payload for chat errors */
 export interface ChatErrorEvent {
   message: string;
+}
+
+/** Convert a database chat message to UI format */
+export function dbMessageToUi(msg: DbChatMessage): ChatMessage {
+  return {
+    id: msg.id,
+    journalId: msg.journal_id,
+    role: msg.role,
+    content: msg.content,
+    timestamp: new Date(msg.created_at),
+    isStreaming: false,
+  };
 }

@@ -1,4 +1,6 @@
+pub mod chat;
 pub mod emotions;
+pub mod images;
 pub mod journals;
 pub mod schema;
 pub mod search;
