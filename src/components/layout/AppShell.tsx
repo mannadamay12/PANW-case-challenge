@@ -1,6 +1,8 @@
+import { useEffect, useRef } from "react";
 import { PanelLeftClose, PanelLeft, Plus, Archive, MessageCircle, BookOpen } from "lucide-react";
 import { useUIStore } from "../../stores/ui-store";
-import { useDeleteEntry } from "../../hooks/use-journal";
+import { useDeleteEntry, useGenerateMissingTitles } from "../../hooks/use-journal";
+import { useOllamaStatus } from "../../hooks/use-chat";
 import { Button } from "../ui/Button";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
 import { SearchBar } from "../journal/SearchBar";
@@ -8,6 +10,7 @@ import { EntryList } from "../journal/EntryList";
 import { Editor } from "../journal/Editor";
 import { ChatView } from "../chat/ChatView";
 import { cn } from "../../lib/utils";
+import logoImage from "../../assets/logo.png";
 
 export function AppShell() {
   const {
@@ -26,6 +29,22 @@ export function AppShell() {
   } = useUIStore();
 
   const deleteMutation = useDeleteEntry();
+  const generateMissingTitles = useGenerateMissingTitles();
+  const { data: ollamaStatus } = useOllamaStatus();
+  const titleGenTriggeredRef = useRef(false);
+
+  // Generate titles for existing entries without them (once on startup)
+  useEffect(() => {
+    if (
+      ollamaStatus?.is_running &&
+      ollamaStatus?.model_available &&
+      !titleGenTriggeredRef.current &&
+      !generateMissingTitles.isPending
+    ) {
+      titleGenTriggeredRef.current = true;
+      generateMissingTitles.mutate();
+    }
+  }, [ollamaStatus, generateMissingTitles]);
 
   const handleNewEntry = () => {
     openEditor();
@@ -53,13 +72,28 @@ export function AppShell() {
         )}
       >
         {/* Sidebar header */}
-        <div className="flex items-center justify-between p-4 border-b border-sanctuary-border">
-          <h1 className="text-lg font-semibold text-sanctuary-text">
-            MindScribe
-          </h1>
-          <Button variant="ghost" size="icon" onClick={toggleSidebar}>
-            <PanelLeftClose className="h-5 w-5" />
-          </Button>
+        <div className="flex items-center justify-between p-3 border-b border-sanctuary-border">
+          <div className="flex items-center gap-2">
+            <img
+              src={logoImage}
+              alt="MindScribe"
+              className="h-8 w-auto"
+              title="MindScribe"
+            />
+          </div>
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleNewEntry}
+              title="New entry"
+            >
+              <Plus className="h-5 w-5" />
+            </Button>
+            <Button variant="ghost" size="icon" onClick={toggleSidebar}>
+              <PanelLeftClose className="h-5 w-5" />
+            </Button>
+          </div>
         </div>
 
         {/* View tabs */}
@@ -90,16 +124,8 @@ export function AppShell() {
           </button>
         </div>
 
-        {/* New entry button */}
-        <div className="p-4">
-          <Button onClick={handleNewEntry} className="w-full">
-            <Plus className="h-4 w-4 mr-2" />
-            New Entry
-          </Button>
-        </div>
-
         {/* Search */}
-        <div className="px-4 pb-2">
+        <div className="px-4 py-3">
           <SearchBar />
         </div>
 

@@ -51,9 +51,10 @@ impl OllamaClient {
 
         // Check if the model is available
         let model_available = match self.list_models().await {
-            Ok(models) => models
-                .iter()
-                .any(|m| m.name.starts_with(CHAT_MODEL.split(':').next().unwrap_or(CHAT_MODEL))),
+            Ok(models) => models.iter().any(|m| {
+                m.name
+                    .starts_with(CHAT_MODEL.split(':').next().unwrap_or(CHAT_MODEL))
+            }),
             Err(_) => false,
         };
 
@@ -162,6 +163,71 @@ impl OllamaClient {
 
         Ok(stream)
     }
+
+    /// Generate a title for a journal entry using a single non-streaming request.
+    pub async fn generate_title(&self, content: &str) -> Result<String, AppError> {
+        let url = format!("{}/api/chat", self.base_url);
+
+        let system_prompt = "You are a helpful assistant that generates concise titles for journal entries. Generate a 2-5 word title that captures the essence of the entry. Respond with ONLY the title, no quotes or extra text.";
+        let user_prompt = format!("Generate a title for this journal entry:\n\n{}", content);
+
+        let messages = vec![
+            ChatMessage {
+                role: "system".to_string(),
+                content: system_prompt.to_string(),
+            },
+            ChatMessage {
+                role: "user".to_string(),
+                content: user_prompt,
+            },
+        ];
+
+        let request = ChatRequest {
+            model: CHAT_MODEL.to_string(),
+            messages,
+            stream: false,
+            options: Some(ChatOptions {
+                temperature: 0.3,
+                top_p: 0.9,
+                num_predict: 20,
+            }),
+        };
+
+        let response = self
+            .client
+            .post(&url)
+            .json(&request)
+            .send()
+            .await
+            .map_err(|e| AppError::Llm(format!("Failed to generate title: {}", e)))?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let body = response.text().await.unwrap_or_default();
+            return Err(AppError::Llm(format!(
+                "Ollama returned error {}: {}",
+                status, body
+            )));
+        }
+
+        let resp: NonStreamResponse = response
+            .json()
+            .await
+            .map_err(|e| AppError::Llm(format!("Failed to parse title response: {}", e)))?;
+
+        let title = resp
+            .message
+            .map(|m| m.content.trim().to_string())
+            .unwrap_or_default();
+
+        Ok(title)
+    }
+}
+
+/// Non-streaming response from /api/chat.
+#[derive(Debug, Deserialize)]
+struct NonStreamResponse {
+    message: Option<ChatMessageContent>,
 }
 
 impl Default for OllamaClient {

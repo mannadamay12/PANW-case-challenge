@@ -52,7 +52,38 @@ pub fn run_migrations(conn: &Connection) -> Result<(), AppError> {
     // Create triggers separately (can't use IF NOT EXISTS with triggers in batch)
     create_fts_triggers(conn)?;
 
+    // Add new columns to existing tables (for upgrades from older schema)
+    add_journal_columns_if_missing(conn)?;
+
     log::info!("Database migrations completed");
+    Ok(())
+}
+
+/// Add title and entry_type columns to journals table if they don't exist.
+/// This handles upgrading from older database schemas.
+fn add_journal_columns_if_missing(conn: &Connection) -> Result<(), AppError> {
+    // Check if columns exist by querying table info
+    let columns: Vec<String> = conn
+        .prepare("PRAGMA table_info(journals)")?
+        .query_map([], |row| row.get::<_, String>(1))?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    // Add title column if missing
+    if !columns.contains(&"title".to_string()) {
+        log::info!("Adding 'title' column to journals table");
+        conn.execute("ALTER TABLE journals ADD COLUMN title TEXT", [])?;
+    }
+
+    // Add entry_type column if missing
+    if !columns.contains(&"entry_type".to_string()) {
+        log::info!("Adding 'entry_type' column to journals table");
+        conn.execute(
+            "ALTER TABLE journals ADD COLUMN entry_type TEXT DEFAULT 'reflection'",
+            [],
+        )?;
+    }
+
     Ok(())
 }
 

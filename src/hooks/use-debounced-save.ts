@@ -1,19 +1,26 @@
 import { useRef, useCallback, useEffect } from "react";
+import type { EntryType } from "../types/journal";
+
+export interface SaveData {
+  content: string;
+  title?: string;
+  entryType?: EntryType;
+}
 
 interface PendingWrite {
-  content: string;
+  data: SaveData;
   entryId: string | null;
   isNewEntry: boolean;
 }
 
 interface UseDebouncedSaveOptions {
   delay: number;
-  onSaveNew: (content: string) => Promise<string | void>;
-  onSaveExisting: (entryId: string, content: string) => Promise<void>;
+  onSaveNew: (data: SaveData) => Promise<string | void>;
+  onSaveExisting: (entryId: string, data: SaveData) => Promise<void>;
 }
 
 interface UseDebouncedSaveResult {
-  scheduleWrite: (content: string, entryId: string | null, isNewEntry: boolean) => void;
+  scheduleWrite: (data: SaveData, entryId: string | null, isNewEntry: boolean) => void;
   flushNow: () => Promise<void>;
   cancel: () => void;
   hasPending: boolean;
@@ -44,7 +51,7 @@ export function useDebouncedSave({
     const pending = pendingRef.current;
     if (!pending) return;
 
-    const { content, entryId, isNewEntry } = pending;
+    const { data, entryId, isNewEntry } = pending;
 
     // Clear pending state before async operation
     pendingRef.current = null;
@@ -52,19 +59,24 @@ export function useDebouncedSave({
     clearTimer();
 
     // Skip empty content
-    if (!content.trim()) return;
+    if (!data.content.trim()) return;
 
-    if (isNewEntry) {
-      await onSaveNew(content);
-    } else if (entryId) {
-      await onSaveExisting(entryId, content);
+    try {
+      if (isNewEntry) {
+        await onSaveNew(data);
+      } else if (entryId) {
+        await onSaveExisting(entryId, data);
+      }
+    } catch (error) {
+      console.error("Debounced save failed:", error);
+      throw error;
     }
   }, [onSaveNew, onSaveExisting, clearTimer]);
 
   const scheduleWrite = useCallback(
-    (content: string, entryId: string | null, isNewEntry: boolean) => {
+    (data: SaveData, entryId: string | null, isNewEntry: boolean) => {
       // Capture the entry context at typing time
-      pendingRef.current = { content, entryId, isNewEntry };
+      pendingRef.current = { data, entryId, isNewEntry };
       hasPendingRef.current = true;
 
       // Reset the debounce timer
