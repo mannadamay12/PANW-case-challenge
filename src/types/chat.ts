@@ -70,8 +70,8 @@ export function dbMessageToUi(msg: DbChatMessage): ChatMessage {
       if (Array.isArray(parsed)) {
         sources = parsed;
       }
-    } catch {
-      // Ignore parsing errors
+    } catch (e) {
+      console.warn(`Failed to parse chat metadata for message ${msg.id}:`, e);
     }
   }
 
