@@ -22,6 +22,10 @@ MindScribe is a privacy-preserving journaling application that runs AI capabilit
 | Backend | Rust, Tauri v2, SQLite, sqlite-vec |
 | ML | Candle (embeddings, sentiment), Ollama (LLM) |
 
+## Architecture
+
+![System Architecture](assets/arch.png)
+
 ## Getting Started
 
 ### Prerequisites
@@ -76,14 +80,19 @@ mindscribe/
 │       ├── ml/             # Candle ML models
 │       └── llm/            # Ollama integration
 │
-└── docs/                   # Additional documentation
+├── assets/                 # Documentation assets
+│   ├── arch.png            # System architecture diagram
+│   ├── ml.png              # ML pipeline diagram
+│   ├── technical_doc.md    # API specifications
+│   └── mindScribe.md       # Architecture blueprint
+└── DOCUMENTATION.md        # Design documentation
 ```
 
 ## Documentation
 
 - [Design Documentation](DOCUMENTATION.md) - Architecture decisions and technical deep-dive
-- [Technical Specs](docs/technical_doc.md) - API specifications and database schema
-- [Architecture Blueprint](mindScribe.md) - Original research and design rationale
+- [Technical Specs](assets/technical_doc.md) - API specifications and database schema
+- [Architecture Blueprint](assets/mindScribe.md) - Original research and design rationale
 
 ## Development
 
