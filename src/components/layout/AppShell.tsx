@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { PanelLeftClose, PanelLeft, Plus, Archive, MessageCircle, BookOpen } from "lucide-react";
+import { PanelLeftClose, PanelLeft, Plus, Archive, MessageCircle, BookOpen, BookTemplate } from "lucide-react";
 import { useUIStore } from "../../stores/ui-store";
 import { useDeleteEntry, useGenerateMissingTitles } from "../../hooks/use-journal";
 import { useOllamaStatus } from "../../hooks/use-chat";
@@ -9,6 +9,7 @@ import { SearchBar } from "../journal/SearchBar";
 import { EntryList } from "../journal/EntryList";
 import { Editor } from "../journal/Editor";
 import { ChatView } from "../chat/ChatView";
+import { TemplatesView } from "../templates/TemplatesView";
 import { cn } from "../../lib/utils";
 import logoImage from "../../assets/logo.png";
 
@@ -122,6 +123,18 @@ export function AppShell() {
             <MessageCircle className="h-4 w-4" />
             Chat
           </button>
+          <button
+            onClick={() => setActiveView("library")}
+            className={cn(
+              "flex-1 flex items-center justify-center gap-2 py-3 text-sm font-medium transition-colors",
+              activeView === "library"
+                ? "text-sanctuary-accent border-b-2 border-sanctuary-accent"
+                : "text-sanctuary-muted hover:text-sanctuary-text"
+            )}
+          >
+            <BookTemplate className="h-4 w-4" />
+            Library
+          </button>
         </div>
 
         {/* Search */}
@@ -163,6 +176,8 @@ export function AppShell() {
         {/* Content area */}
         {activeView === "chat" ? (
           <ChatView />
+        ) : activeView === "library" ? (
+          <TemplatesView />
         ) : isEditorOpen ? (
           <Editor />
         ) : (

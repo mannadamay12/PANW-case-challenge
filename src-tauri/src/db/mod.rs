@@ -2,6 +2,7 @@ pub mod emotions;
 pub mod journals;
 pub mod schema;
 pub mod search;
+pub mod templates;
 pub mod vectors;
 
 use rusqlite::Connection;

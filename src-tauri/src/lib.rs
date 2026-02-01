@@ -5,6 +5,7 @@ pub mod ml;
 
 use db::journals::{CreateEntryResponse, DeleteResponse, Journal};
 use db::search::HybridSearchResult;
+use db::templates::{CreateTemplateResponse, DeleteTemplateResponse, Template};
 use db::DbPool;
 use error::AppError;
 use futures::StreamExt;
@@ -16,6 +17,7 @@ use tauri::{AppHandle, Emitter, Manager, State};
 
 // Re-export for external use
 pub use db::journals;
+pub use db::templates;
 pub use error::AppError as Error;
 
 /// Create a new journal entry.
@@ -91,6 +93,76 @@ fn search_entries(
 ) -> Result<Vec<Journal>, AppError> {
     let conn = pool.get()?;
     journals::search(&conn, &query, include_archived.unwrap_or(false))
+}
+
+// Template Commands
+
+/// Create a new journal template.
+#[tauri::command]
+fn create_template(
+    pool: State<'_, DbPool>,
+    title: String,
+    prompt: String,
+    template_text: String,
+    icon: Option<String>,
+    category: String,
+) -> Result<CreateTemplateResponse, AppError> {
+    let conn = pool.get()?;
+    templates::create(&conn, &title, &prompt, &template_text, icon.as_deref(), &category)
+}
+
+/// Get a single template by ID.
+#[tauri::command]
+fn get_template(pool: State<'_, DbPool>, id: String) -> Result<Template, AppError> {
+    let conn = pool.get()?;
+    templates::get(&conn, &id)
+}
+
+/// List all templates.
+#[tauri::command]
+fn list_templates(pool: State<'_, DbPool>) -> Result<Vec<Template>, AppError> {
+    let conn = pool.get()?;
+    templates::list(&conn)
+}
+
+/// List templates by category.
+#[tauri::command]
+fn list_templates_by_category(
+    pool: State<'_, DbPool>,
+    category: String,
+) -> Result<Vec<Template>, AppError> {
+    let conn = pool.get()?;
+    templates::list_by_category(&conn, &category)
+}
+
+/// Update a template.
+#[tauri::command]
+fn update_template(
+    pool: State<'_, DbPool>,
+    id: String,
+    title: Option<String>,
+    prompt: Option<String>,
+    template_text: Option<String>,
+    icon: Option<String>,
+    category: Option<String>,
+) -> Result<Template, AppError> {
+    let conn = pool.get()?;
+    templates::update(
+        &conn,
+        &id,
+        title.as_deref(),
+        prompt.as_deref(),
+        template_text.as_deref(),
+        icon.as_deref(),
+        category.as_deref(),
+    )
+}
+
+/// Delete a template.
+#[tauri::command]
+fn delete_template(pool: State<'_, DbPool>, id: String) -> Result<DeleteTemplateResponse, AppError> {
+    let conn = pool.get()?;
+    templates::delete(&conn, &id)
 }
 
 // ML Commands
@@ -453,6 +525,12 @@ pub fn run() {
             delete_entry,
             archive_entry,
             search_entries,
+            create_template,
+            get_template,
+            list_templates,
+            list_templates_by_category,
+            update_template,
+            delete_template,
             get_model_status,
             initialize_models,
             get_entry_emotions,
