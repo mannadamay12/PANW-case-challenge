@@ -291,7 +291,7 @@ const slideUp = "animate-in slide-in-from-bottom-4 duration-300"
 ### Mood Selector
 
 ```tsx
-<div className="flex items-center gap-2 p-3 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-xl border border-indigo-100">
+<div className="flex items-center gap-2 p-3 bg-linear-to-r from-indigo-50 to-purple-50 rounded-xl border border-indigo-100">
   <span className="text-sm font-sans text-pencil mr-2">How are you feeling?</span>
   {['😢', '😔', '😐', '🙂', '😄'].map((emoji, i) => (
     <button
