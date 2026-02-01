@@ -9,7 +9,7 @@ use crate::error::AppError;
 const OLLAMA_BASE_URL: &str = "http://localhost:11434";
 
 /// The model we use for chat completions.
-pub const CHAT_MODEL: &str = "gemma2:2b";
+pub const CHAT_MODEL: &str = "gemma3:4b";
 
 /// Client for interacting with Ollama's HTTP API.
 #[derive(Clone)]
@@ -131,7 +131,7 @@ impl OllamaClient {
         let stream = response.bytes_stream().map(|result| {
             result
                 .map_err(|e| AppError::Llm(format!("Stream error: {}", e)))
-                .and_then(|bytes| {
+                .map(|bytes| {
                     let text = String::from_utf8_lossy(&bytes);
                     // Ollama streams newline-delimited JSON
                     let mut last_chunk = ChatStreamChunk {
@@ -156,7 +156,7 @@ impl OllamaClient {
                         }
                     }
 
-                    Ok(last_chunk)
+                    last_chunk
                 })
         });
 
