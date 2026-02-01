@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, type KeyboardEvent } from "react";
-import { Send } from "lucide-react";
+import { PaperPlaneRight } from "@phosphor-icons/react";
 import { Button } from "../ui/Button";
 import { useChatStore } from "../../stores/chat-store";
 import { useChatStream } from "../../hooks/use-chat";
@@ -56,7 +56,7 @@ export function ChatInput() {
           size="icon"
           className="shrink-0"
         >
-          <Send className="h-4 w-4" />
+          <PaperPlaneRight className="h-4 w-4" />
         </Button>
       </div>
       <p className="text-xs text-sanctuary-muted text-center mt-2">

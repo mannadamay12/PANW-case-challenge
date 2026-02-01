@@ -1,12 +1,12 @@
 import { useState } from "react";
-import { Plus, Search, BookTemplate, Loader2 } from "lucide-react";
+import { Plus, CircleNotch } from "@phosphor-icons/react";
 import { useTemplates, useDeleteTemplate } from "../../hooks/use-templates";
 import { useUIStore } from "../../stores/ui-store";
-import { Button } from "../ui/Button";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
 import { TemplateGrid } from "./TemplateGrid";
 import { TemplateModal } from "./TemplateModal";
-import type { Template } from "../../types/templates";
+import type { Template, TemplateCategory } from "../../types/templates";
+import { CATEGORY_LABELS, CATEGORY_ORDER } from "../../types/templates";
 
 export function TemplatesView() {
   const { data: templates, isLoading, error } = useTemplates();
@@ -19,41 +19,22 @@ export function TemplatesView() {
     openEditorWithTemplate,
   } = useUIStore();
 
-  const [searchQuery, setSearchQuery] = useState("");
   const [deleteConfirmTemplate, setDeleteConfirmTemplate] = useState<Template | null>(null);
 
-  // Filter templates by search query
-  const filteredTemplates = templates?.filter((t) => {
-    if (!searchQuery.trim()) return true;
-    const query = searchQuery.toLowerCase();
-    return (
-      t.title.toLowerCase().includes(query) ||
-      t.prompt.toLowerCase().includes(query) ||
-      t.template_text.toLowerCase().includes(query)
-    );
-  });
+  // Group templates by category
+  const templatesByCategory = templates?.reduce<Record<TemplateCategory, Template[]>>(
+    (acc, template) => {
+      if (!acc[template.category]) {
+        acc[template.category] = [];
+      }
+      acc[template.category].push(template);
+      return acc;
+    },
+    {} as Record<TemplateCategory, Template[]>
+  );
 
   const handleUseTemplate = (template: Template) => {
     openEditorWithTemplate(template.template_text, template.title);
-  };
-
-  const handleEditTemplate = (template: Template) => {
-    setEditingTemplateId(template.id);
-    setShowTemplateModal(true);
-  };
-
-  const handleDeleteTemplate = (template: Template) => {
-    setDeleteConfirmTemplate(template);
-  };
-
-  const handleConfirmDelete = () => {
-    if (deleteConfirmTemplate) {
-      deleteMutation.mutate(deleteConfirmTemplate.id, {
-        onSuccess: () => {
-          setDeleteConfirmTemplate(null);
-        },
-      });
-    }
   };
 
   const handleNewTemplate = () => {
@@ -66,74 +47,71 @@ export function TemplatesView() {
     setEditingTemplateId(null);
   };
 
+  const handleConfirmDelete = () => {
+    if (deleteConfirmTemplate) {
+      deleteMutation.mutate(deleteConfirmTemplate.id, {
+        onSuccess: () => {
+          setDeleteConfirmTemplate(null);
+        },
+      });
+    }
+  };
+
   if (isLoading) {
     return (
-      <div className="h-full flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-sanctuary-accent" />
+      <div className="h-full flex items-center justify-center bg-sanctuary-bg">
+        <CircleNotch className="h-8 w-8 animate-spin text-sanctuary-accent" />
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="h-full flex items-center justify-center">
+      <div className="h-full flex items-center justify-center bg-sanctuary-bg">
         <p className="text-red-600">Failed to load templates</p>
       </div>
     );
   }
 
   return (
-    <div className="h-full flex flex-col bg-sanctuary-card">
-      {/* Compact header */}
-      <div className="px-6 py-4 border-b border-sanctuary-border">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-3">
-            <BookTemplate className="h-5 w-5 text-sanctuary-muted" />
-            <h1 className="text-lg font-medium text-sanctuary-text">Library</h1>
-          </div>
-          <Button onClick={handleNewTemplate} size="sm">
-            <Plus className="h-4 w-4 mr-2" />
-            New Template
-          </Button>
-        </div>
-
-        {/* Search */}
-        <div className="relative max-w-md">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-sanctuary-muted" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search templates..."
-            className="w-full pl-10 pr-4 py-2 rounded-lg border border-sanctuary-border bg-sanctuary-card text-sanctuary-text placeholder:text-sanctuary-muted/50 focus:outline-none focus:ring-2 focus:ring-sanctuary-accent"
-          />
-        </div>
+    <div className="h-full flex flex-col bg-sanctuary-bg">
+      {/* Header */}
+      <div className="px-6 pt-6 pb-4 flex items-center justify-between">
+        <h1 className="text-2xl font-bold text-sanctuary-text">Gallery</h1>
+        <button
+          onClick={handleNewTemplate}
+          className="w-8 h-8 rounded-full bg-sanctuary-hover flex items-center justify-center text-sanctuary-muted hover:bg-sanctuary-selected transition-colors"
+          title="New template"
+        >
+          <Plus className="h-4 w-4" weight="bold" />
+        </button>
       </div>
 
-      {/* Content */}
-      <div className="flex-1 overflow-y-auto p-6">
-        {filteredTemplates && filteredTemplates.length > 0 ? (
-          <TemplateGrid
-            templates={filteredTemplates}
-            onUse={handleUseTemplate}
-            onEdit={handleEditTemplate}
-            onDelete={handleDeleteTemplate}
-          />
-        ) : searchQuery ? (
-          <div className="flex flex-col items-center justify-center h-64 text-center">
-            <Search className="h-12 w-12 text-sanctuary-muted/30 mb-4" />
-            <p className="text-sanctuary-muted">No templates match "{searchQuery}"</p>
-          </div>
-        ) : (
-          <div className="flex flex-col items-center justify-center h-64 text-center">
-            <BookTemplate className="h-12 w-12 text-sanctuary-muted/30 mb-4" />
-            <p className="text-sanctuary-muted mb-4">No templates yet</p>
-            <Button onClick={handleNewTemplate}>
-              <Plus className="h-4 w-4 mr-2" />
-              Create your first template
-            </Button>
-          </div>
-        )}
+      {/* Templates grouped by category */}
+      <div className="flex-1 overflow-y-auto px-6 pb-6">
+        <div className="max-w-3xl mx-auto space-y-8">
+          {CATEGORY_ORDER.map((category) => {
+            const categoryTemplates = templatesByCategory?.[category] || [];
+
+            return (
+              <section key={category}>
+                {/* Category header */}
+                <h2 className="text-xl font-semibold text-sanctuary-text mb-4">
+                  {CATEGORY_LABELS[category]}
+                </h2>
+
+                {/* Templates grid */}
+                {categoryTemplates.length > 0 ? (
+                  <TemplateGrid templates={categoryTemplates} onUse={handleUseTemplate} />
+                ) : (
+                  <div className="py-8 text-center">
+                    <p className="text-sanctuary-muted text-sm">No templates yet</p>
+                  </div>
+                )}
+              </section>
+            );
+          })}
+        </div>
       </div>
 
       {/* Template Modal */}

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Download, CheckCircle, Loader2, AlertCircle } from "lucide-react";
+import { DownloadSimple, CheckCircle, CircleNotch, WarningCircle } from "@phosphor-icons/react";
 import { Button } from "../ui/Button";
 import { ProgressBar } from "./ProgressBar";
 import { useInitializeModels } from "../../hooks/use-ml";
@@ -118,7 +118,7 @@ function WelcomeStep({
   return (
     <div className="text-center">
       <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-sanctuary-accent/10">
-        <Download className="h-8 w-8 text-sanctuary-accent" />
+        <DownloadSimple className="h-8 w-8 text-sanctuary-accent" />
       </div>
 
       <h2 className="mb-3 text-xl font-semibold text-sanctuary-text">
@@ -159,7 +159,7 @@ function DownloadingStep({
   return (
     <div className="text-center">
       <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center">
-        <Loader2 className="h-10 w-10 text-sanctuary-accent animate-spin" />
+        <CircleNotch className="h-10 w-10 text-sanctuary-accent animate-spin" />
       </div>
 
       <h2 className="mb-6 text-xl font-semibold text-sanctuary-text">
@@ -210,7 +210,7 @@ function ErrorStep({
   return (
     <div className="text-center">
       <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-red-100">
-        <AlertCircle className="h-8 w-8 text-red-600" />
+        <WarningCircle className="h-8 w-8 text-red-600" />
       </div>
 
       <h2 className="mb-3 text-xl font-semibold text-sanctuary-text">

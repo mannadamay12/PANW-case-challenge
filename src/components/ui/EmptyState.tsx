@@ -1,4 +1,4 @@
-import { BookOpen } from "lucide-react";
+import { BookOpenText } from "@phosphor-icons/react";
 import { cn } from "../../lib/utils";
 
 interface EmptyStateProps {
@@ -20,7 +20,7 @@ export function EmptyState({
       )}
     >
       <div className="rounded-full bg-sanctuary-bg p-4 mb-4">
-        <BookOpen className="h-8 w-8 text-sanctuary-muted" />
+        <BookOpenText className="h-8 w-8 text-sanctuary-muted" />
       </div>
       <h3 className="text-lg font-medium text-sanctuary-text mb-1">{title}</h3>
       <p className="text-sm text-sanctuary-muted max-w-[250px]">{description}</p>

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
-import { Send, Sparkles, X, Lightbulb, Maximize2, RefreshCw } from "lucide-react";
+import { PaperPlaneRight, Sparkle, X, Lightbulb, ArrowsOut, ArrowClockwise } from "@phosphor-icons/react";
 import { Button } from "../ui/Button";
 import { cn } from "../../lib/utils";
 import { useUIStore } from "../../stores/ui-store";
@@ -19,8 +19,8 @@ interface AISidepanelProps {
 /** Quick action buttons for common AI interactions */
 const QUICK_ACTIONS = [
   { label: "Reflect", prompt: "What emotions do you notice in this entry?", icon: Lightbulb },
-  { label: "Expand", prompt: "Help me expand on these thoughts", icon: Maximize2 },
-  { label: "Reframe", prompt: "How might I reframe this situation positively?", icon: RefreshCw },
+  { label: "Expand", prompt: "Help me expand on these thoughts", icon: ArrowsOut },
+  { label: "Reframe", prompt: "How might I reframe this situation positively?", icon: ArrowClockwise },
 ];
 
 export function AISidepanel({ journalId, entryContent: _entryContent }: AISidepanelProps) {
@@ -92,7 +92,7 @@ export function AISidepanel({ journalId, entryContent: _entryContent }: AISidepa
       {/* Header */}
       <div className="flex items-center justify-between px-3 py-2 border-b border-sanctuary-border">
         <div className="flex items-center gap-2">
-          <Sparkles className="h-4 w-4 text-sanctuary-accent" />
+          <Sparkle className="h-4 w-4 text-sanctuary-accent" />
           <h3 className="font-medium text-sanctuary-text text-sm">AI Companion</h3>
         </div>
         <Button
@@ -145,7 +145,7 @@ export function AISidepanel({ journalId, entryContent: _entryContent }: AISidepa
 
         {isReady && messages.length === 0 && !isLoading && (
           <div className="text-center py-8">
-            <Sparkles className="h-8 w-8 text-sanctuary-muted/50 mx-auto mb-3" />
+            <Sparkle className="h-8 w-8 text-sanctuary-muted/50 mx-auto mb-3" />
             <p className="text-sm text-sanctuary-muted">
               Ask me anything about your entry or use a quick action above.
             </p>
@@ -192,7 +192,7 @@ export function AISidepanel({ journalId, entryContent: _entryContent }: AISidepa
               size="icon"
               className="h-9 w-9 shrink-0"
             >
-              <Send className="h-4 w-4" />
+              <PaperPlaneRight className="h-4 w-4" />
             </Button>
           </div>
         </div>
@@ -226,7 +226,14 @@ function MessageBubble({ message }: { message: ChatMessage }) {
       >
         <div className="whitespace-pre-wrap break-words text-sm leading-relaxed">
           {message.content || (message.isStreaming && (
-            <span className="text-sanctuary-muted italic">Thinking...</span>
+            <span className="flex items-center gap-1.5 text-sanctuary-muted">
+              <span className="flex gap-0.5">
+                <span className="w-1.5 h-1.5 bg-sanctuary-muted rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
+                <span className="w-1.5 h-1.5 bg-sanctuary-muted rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
+                <span className="w-1.5 h-1.5 bg-sanctuary-muted rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
+              </span>
+              <span className="italic">Thinking...</span>
+            </span>
           ))}
         </div>
       </div>

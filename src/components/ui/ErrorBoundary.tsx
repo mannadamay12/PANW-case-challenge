@@ -1,5 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
-import { AlertTriangle, RotateCcw } from "lucide-react";
+import { Warning, ArrowCounterClockwise } from "@phosphor-icons/react";
 import { Button } from "./Button";
 
 interface ErrorBoundaryProps {
@@ -39,7 +39,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
       return (
         <div className="h-full flex flex-col items-center justify-center bg-sanctuary-card p-8">
           <div className="flex flex-col items-center gap-4 max-w-md text-center">
-            <AlertTriangle className="h-12 w-12 text-amber-500" />
+            <Warning className="h-12 w-12 text-amber-500" />
             <h2 className="text-xl font-semibold text-sanctuary-text">
               Something went wrong
             </h2>
@@ -52,7 +52,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
               </pre>
             )}
             <Button onClick={this.handleRetry} className="mt-4">
-              <RotateCcw className="h-4 w-4 mr-2" />
+              <ArrowCounterClockwise className="h-4 w-4 mr-2" />
               Try Again
             </Button>
           </div>

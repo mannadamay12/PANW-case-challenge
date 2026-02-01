@@ -1,4 +1,4 @@
-import { AlertCircle, CheckCircle, Loader2 } from "lucide-react";
+import { WarningCircle, CheckCircle, CircleNotch } from "@phosphor-icons/react";
 import { useOllamaStatus } from "../../hooks/use-chat";
 
 export function OllamaStatusIndicator() {
@@ -7,7 +7,7 @@ export function OllamaStatusIndicator() {
   if (isLoading) {
     return (
       <div className="flex items-center gap-2 text-sanctuary-muted text-sm">
-        <Loader2 className="h-4 w-4 animate-spin" />
+        <CircleNotch className="h-4 w-4 animate-spin" />
         <span>Checking AI status...</span>
       </div>
     );
@@ -16,7 +16,7 @@ export function OllamaStatusIndicator() {
   if (error || !status?.is_running) {
     return (
       <div className="flex items-center gap-2 text-amber-600 text-sm">
-        <AlertCircle className="h-4 w-4" />
+        <WarningCircle className="h-4 w-4" />
         <span>Ollama not running</span>
       </div>
     );
@@ -25,7 +25,7 @@ export function OllamaStatusIndicator() {
   if (!status.model_available) {
     return (
       <div className="flex items-center gap-2 text-amber-600 text-sm">
-        <AlertCircle className="h-4 w-4" />
+        <WarningCircle className="h-4 w-4" />
         <span>Model not installed</span>
       </div>
     );
@@ -53,7 +53,7 @@ export function OllamaSetupBanner() {
     <div className="bg-amber-50 border-b border-amber-200 px-4 py-3">
       <div className="max-w-3xl mx-auto">
         <div className="flex items-start gap-3">
-          <AlertCircle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+          <WarningCircle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
           <div>
             <p className="text-sm font-medium text-amber-800">
               {!status?.is_running

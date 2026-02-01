@@ -1,4 +1,4 @@
-import { AlertCircle, X } from "lucide-react";
+import { WarningCircle, X } from "@phosphor-icons/react";
 import { useChatStore } from "../../stores/chat-store";
 
 export function DistressBanner() {
@@ -13,7 +13,7 @@ export function DistressBanner() {
   return (
     <div className="bg-amber-50 border-b border-amber-200 px-4 py-3">
       <div className="flex items-start gap-3 max-w-3xl mx-auto">
-        <AlertCircle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+        <WarningCircle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
         <div className="flex-1">
           <p className="text-sm text-amber-800">
             {safetyWarning.intervention}

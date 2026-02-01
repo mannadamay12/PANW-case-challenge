@@ -1,46 +1,35 @@
 import { useState, useRef, useEffect } from "react";
 import {
-  Settings,
-  Sun,
-  Moon,
-  Heart,
-  PenLine,
+  Gear,
   Check,
-  BookTemplate,
-  Save,
+  SquaresFour,
+  FloppyDisk,
   Archive,
-  Trash2,
+  Trash,
   Eye,
-  ChevronRight,
-} from "lucide-react";
+  Calendar,
+} from "@phosphor-icons/react";
 import { useUIStore } from "../../stores/ui-store";
 import { cn } from "../../lib/utils";
-import type { EntryType } from "../../types/journal";
+import { DatePicker } from "../ui/DatePicker";
 
 interface EditorOptionsMenuProps {
   entryId: string | null;
-  entryType: EntryType;
-  onChangeEntryType: (type: EntryType) => void;
+  entryDate?: string | null;
+  onChangeDate?: (date: string) => void;
   isArchived?: boolean;
-  onOpenLibrary: () => void;
+  onOpenGallery: () => void;
   onSaveAsTemplate?: () => void;
   onArchive?: () => void;
   onDelete?: () => void;
 }
 
-const entryTypes: { type: EntryType; label: string; icon: typeof Sun }[] = [
-  { type: "morning", label: "Morning", icon: Sun },
-  { type: "evening", label: "Evening", icon: Moon },
-  { type: "gratitude", label: "Gratitude", icon: Heart },
-  { type: "reflection", label: "Reflection", icon: PenLine },
-];
-
 export function EditorOptionsMenu({
   entryId,
-  entryType,
-  onChangeEntryType,
+  entryDate,
+  onChangeDate,
   isArchived = false,
-  onOpenLibrary,
+  onOpenGallery,
   onSaveAsTemplate,
   onArchive,
   onDelete,
@@ -48,19 +37,21 @@ export function EditorOptionsMenu({
   const {
     showWordCount,
     toggleShowWordCount,
+    showTitle,
+    toggleShowTitle,
     showArchived,
     toggleShowArchived,
   } = useUIStore();
 
   const [isOpen, setIsOpen] = useState(false);
-  const [showEntryTypeSubmenu, setShowEntryTypeSubmenu] = useState(false);
+  const [showDatePicker, setShowDatePicker] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) {
         setIsOpen(false);
-        setShowEntryTypeSubmenu(false);
+        setShowDatePicker(false);
       }
     };
     if (isOpen) {
@@ -68,8 +59,6 @@ export function EditorOptionsMenu({
     }
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [isOpen]);
-
-  const currentType = entryTypes.find((t) => t.type === entryType) ?? entryTypes[3];
 
   return (
     <div ref={ref} className="relative">
@@ -82,58 +71,22 @@ export function EditorOptionsMenu({
         )}
         title="Options"
       >
-        <Settings className="h-4 w-4" />
+        <Gear className="h-4 w-4" />
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 top-full mt-1 z-50 w-48 rounded-lg border border-sanctuary-border bg-sanctuary-card py-1 shadow-lg">
-          {/* Entry Type with submenu */}
-          <div
-            className="relative"
-            onMouseEnter={() => setShowEntryTypeSubmenu(true)}
-            onMouseLeave={() => setShowEntryTypeSubmenu(false)}
-          >
-            <button
-              className={cn(
-                "flex w-full items-center justify-between px-3 py-2 text-sm",
-                "text-sanctuary-muted hover:bg-sanctuary-hover hover:text-sanctuary-text"
-              )}
-            >
-              <div className="flex items-center gap-2">
-                <currentType.icon className="h-4 w-4" />
-                <span>Entry Type</span>
-              </div>
-              <ChevronRight className="h-4 w-4" />
-            </button>
-
-            {showEntryTypeSubmenu && (
-              <div className="absolute left-full top-0 ml-1 w-36 rounded-lg border border-sanctuary-border bg-sanctuary-card py-1 shadow-lg">
-                {entryTypes.map(({ type, label, icon: Icon }) => (
-                  <button
-                    key={type}
-                    onClick={() => {
-                      onChangeEntryType(type);
-                      setShowEntryTypeSubmenu(false);
-                    }}
-                    className={cn(
-                      "flex w-full items-center justify-between px-3 py-2 text-sm transition-colors",
-                      type === entryType
-                        ? "bg-sanctuary-selected text-sanctuary-text"
-                        : "text-sanctuary-muted hover:bg-sanctuary-hover hover:text-sanctuary-text"
-                    )}
-                  >
-                    <div className="flex items-center gap-2">
-                      <Icon className="h-4 w-4" />
-                      <span>{label}</span>
-                    </div>
-                    {type === entryType && <Check className="h-4 w-4" />}
-                  </button>
-                ))}
-              </div>
+        <div className="absolute right-0 top-full mt-1 z-40 w-48 rounded-lg border border-sanctuary-border bg-sanctuary-card py-1 shadow-lg animate-scale-in origin-top-right">
+          {/* Show Title toggle */}
+          <button
+            onClick={() => toggleShowTitle()}
+            className={cn(
+              "flex w-full items-center justify-between px-3 py-2 text-sm",
+              "text-sanctuary-muted hover:bg-sanctuary-hover hover:text-sanctuary-text"
             )}
-          </div>
-
-          <div className="my-1 border-t border-sanctuary-border" />
+          >
+            <span>Show Title</span>
+            {showTitle && <Check className="h-4 w-4" />}
+          </button>
 
           {/* Show Word Count toggle */}
           <button
@@ -147,12 +100,39 @@ export function EditorOptionsMenu({
             {showWordCount && <Check className="h-4 w-4" />}
           </button>
 
+          {/* Change Date */}
+          {entryId && entryDate && onChangeDate && (
+            <div className="relative">
+              <button
+                onClick={() => setShowDatePicker(!showDatePicker)}
+                className={cn(
+                  "flex w-full items-center gap-2 px-3 py-2 text-sm",
+                  "text-sanctuary-muted hover:bg-sanctuary-hover hover:text-sanctuary-text"
+                )}
+              >
+                <Calendar className="h-4 w-4" />
+                <span>Change Date</span>
+              </button>
+              {showDatePicker && (
+                <DatePicker
+                  value={entryDate}
+                  onChange={(date) => {
+                    onChangeDate(date);
+                    setShowDatePicker(false);
+                    setIsOpen(false);
+                  }}
+                  onClose={() => setShowDatePicker(false)}
+                />
+              )}
+            </div>
+          )}
+
           <div className="my-1 border-t border-sanctuary-border" />
 
-          {/* Library */}
+          {/* Gallery */}
           <button
             onClick={() => {
-              onOpenLibrary();
+              onOpenGallery();
               setIsOpen(false);
             }}
             className={cn(
@@ -160,8 +140,8 @@ export function EditorOptionsMenu({
               "text-sanctuary-muted hover:bg-sanctuary-hover hover:text-sanctuary-text"
             )}
           >
-            <BookTemplate className="h-4 w-4" />
-            <span>Library</span>
+            <SquaresFour className="h-4 w-4" />
+            <span>Gallery</span>
           </button>
 
           {/* Save as Template */}
@@ -176,7 +156,7 @@ export function EditorOptionsMenu({
                 "text-sanctuary-muted hover:bg-sanctuary-hover hover:text-sanctuary-text"
               )}
             >
-              <Save className="h-4 w-4" />
+              <FloppyDisk className="h-4 w-4" />
               <span>Save as Template</span>
             </button>
           )}
@@ -229,7 +209,7 @@ export function EditorOptionsMenu({
                     "text-red-600 hover:bg-red-50 dark:hover:bg-red-950"
                   )}
                 >
-                  <Trash2 className="h-4 w-4" />
+                  <Trash className="h-4 w-4" />
                   <span>Delete</span>
                 </button>
               )}
