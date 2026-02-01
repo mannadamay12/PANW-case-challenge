@@ -29,6 +29,9 @@ export function Editor() {
     setDeleteConfirmId,
     toggleSidebar,
     isSidebarOpen,
+    pendingTemplateText,
+    pendingTemplateTitle,
+    clearPendingTemplate,
   } = useUIStore();
 
   const { data: entry, isLoading } = useEntry(selectedEntryId);
@@ -138,7 +141,7 @@ export function Editor() {
   useEffect(() => {
     if (entry) {
       if (initializedForRef.current !== entry.id) {
-        debouncedSave.cancel();
+        debouncedSave.flushNow();
         setContent(entry.content);
         setTitle(entry.title || "");
         setEntryType(entry.entry_type);
@@ -147,15 +150,20 @@ export function Editor() {
       }
     } else if (isNewEntry) {
       if (initializedForRef.current !== "new") {
-        debouncedSave.cancel();
-        setContent("");
-        setTitle("");
+        debouncedSave.flushNow();
+        // Use pending template data if available
+        setContent(pendingTemplateText || "");
+        setTitle(pendingTemplateTitle || "");
         setEntryType("reflection");
         initializedForRef.current = "new";
         setSaveError(null);
+        // Clear pending template after use
+        if (pendingTemplateText || pendingTemplateTitle) {
+          clearPendingTemplate();
+        }
       }
     }
-  }, [entry, isNewEntry, debouncedSave]);
+  }, [entry, isNewEntry, debouncedSave, pendingTemplateText, pendingTemplateTitle, clearPendingTemplate]);
 
   useEffect(() => {
     if (!selectedEntryId && !isNewEntry) {

@@ -210,6 +210,7 @@ pub fn update(
             _ => "entry_type = ?4",
         };
         updates.push(placeholder);
+        param_idx += 1;
     }
 
     let sql = format!(
