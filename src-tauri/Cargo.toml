@@ -22,4 +22,26 @@ rusqlite = { version = "0.32", features = ["bundled"] }
 tokio = { version = "1", features = ["full"] }
 anyhow = "1"
 thiserror = "1"
+uuid = { version = "1", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+log = "0.4"
+env_logger = "0.11"
+
+# Vector database extension
+sqlite-vec = "0.1"
+
+# ML/AI dependencies
+candle-core = "0.8"
+candle-nn = "0.8"
+candle-transformers = "0.8"
+tokenizers = "0.20"
+hf-hub = "0.4"
+
+# LLM/Chat dependencies
+reqwest = { version = "0.12", features = ["json", "stream"] }
+futures = "0.3"
+regex = "1"
+
+[dev-dependencies]
+tempfile = "3"
 
