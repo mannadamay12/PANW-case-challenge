@@ -47,8 +47,9 @@ export function useChatStream() {
     setShowSafetyModal,
   } = useChatStore();
 
-  // Set up event listeners
+  // Set up event listeners with proper async cleanup handling
   useEffect(() => {
+    let isMounted = true;
     const unlisteners: UnlistenFn[] = [];
 
     const setupListeners = async () => {
@@ -56,6 +57,7 @@ export function useChatStream() {
       const unlistenChunk = await listen<ChatChunkEvent>(
         "chat-chunk",
         (event) => {
+          if (!isMounted) return;
           const { chunk } = event.payload;
           const currentId = useChatStore.getState().currentStreamingId;
           if (currentId && chunk) {
@@ -63,10 +65,12 @@ export function useChatStream() {
           }
         }
       );
-      unlisteners.push(unlistenChunk);
+      if (isMounted) unlisteners.push(unlistenChunk);
+      else unlistenChunk();
 
       // Listen for chat completion
       const unlistenDone = await listen("chat-done", () => {
+        if (!isMounted) return;
         const currentId = useChatStore.getState().currentStreamingId;
         if (currentId) {
           setMessageStreaming(currentId, false);
@@ -74,12 +78,14 @@ export function useChatStream() {
         setIsStreaming(false);
         setCurrentStreamingId(null);
       });
-      unlisteners.push(unlistenDone);
+      if (isMounted) unlisteners.push(unlistenDone);
+      else unlistenDone();
 
       // Listen for chat errors
       const unlistenError = await listen<ChatErrorEvent>(
         "chat-error",
         (event) => {
+          if (!isMounted) return;
           console.error("Chat error:", event.payload.message);
           const currentId = useChatStore.getState().currentStreamingId;
           if (currentId) {
@@ -93,12 +99,14 @@ export function useChatStream() {
           setCurrentStreamingId(null);
         }
       );
-      unlisteners.push(unlistenError);
+      if (isMounted) unlisteners.push(unlistenError);
+      else unlistenError();
     };
 
     setupListeners();
 
     return () => {
+      isMounted = false;
       unlisteners.forEach((unlisten) => unlisten());
     };
   }, [
