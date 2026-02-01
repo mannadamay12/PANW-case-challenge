@@ -1,0 +1,43 @@
+import { Loader2, CheckCircle } from "lucide-react";
+import { cn } from "../../lib/utils";
+import type { SaveStatus } from "../../hooks/use-debounced-save";
+
+interface SaveStatusIndicatorProps {
+  status: SaveStatus;
+  className?: string;
+}
+
+export function SaveStatusIndicator({
+  status,
+  className,
+}: SaveStatusIndicatorProps) {
+  return (
+    <div
+      className={cn(
+        "flex items-center gap-1.5 text-xs transition-opacity duration-200",
+        status === "idle" && "text-sanctuary-muted opacity-50",
+        status === "pending" && "text-sanctuary-muted",
+        status === "saving" && "text-sanctuary-muted",
+        status === "saved" && "text-green-600",
+        status === "error" && "text-red-600",
+        className
+      )}
+    >
+      {status === "saving" && (
+        <>
+          <Loader2 className="h-3 w-3 animate-spin" />
+          <span>Saving...</span>
+        </>
+      )}
+      {status === "saved" && (
+        <>
+          <CheckCircle className="h-3 w-3" />
+          <span>Saved</span>
+        </>
+      )}
+      {status === "pending" && <span>Unsaved</span>}
+      {status === "idle" && <span>Saved</span>}
+      {status === "error" && <span>Save failed</span>}
+    </div>
+  );
+}

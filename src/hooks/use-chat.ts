@@ -15,6 +15,7 @@ export const chatKeys = {
   all: ["chat"] as const,
   status: () => [...chatKeys.all, "status"] as const,
   safety: (text: string) => [...chatKeys.all, "safety", text] as const,
+  messages: (journalId: string) => [...chatKeys.all, "messages", journalId] as const,
 };
 
 /** Check if Ollama is running and model is available */
@@ -35,19 +36,40 @@ export function useCheckSafety() {
   });
 }
 
-/** Hook to manage chat streaming with Tauri events */
-export function useChatStream() {
+/** Hook to load and manage messages for a specific journal entry */
+export function useEntryMessages(journalId: string | null) {
+  const loadMessages = useChatStore((s) => s.loadMessages);
+  const getMessages = useChatStore((s) => s.getMessages);
+  const loadingEntries = useChatStore((s) => s.loadingEntries);
+
+  useEffect(() => {
+    if (journalId) {
+      loadMessages(journalId);
+    }
+  }, [journalId, loadMessages]);
+
+  const messages = getMessages(journalId);
+  const isLoading = journalId ? loadingEntries.has(journalId) : false;
+
+  return { messages, isLoading };
+}
+
+/** Hook to manage chat streaming scoped to a journal entry */
+export function useEntryChatStream(journalId: string | null) {
   const {
     addMessage,
     appendToMessage,
     setMessageStreaming,
     setIsStreaming,
-    setCurrentStreamingId,
+    setStreamingEntryId,
+    setCurrentStreamingMessageId,
     setSafetyWarning,
     setShowSafetyModal,
+    streamingEntryId,
+    isStreaming,
   } = useChatStore();
 
-  // Set up event listeners with proper async cleanup handling
+  // Set up event listeners for this entry's streaming
   useEffect(() => {
     let isMounted = true;
     const unlisteners: UnlistenFn[] = [];
@@ -59,9 +81,11 @@ export function useChatStream() {
         (event) => {
           if (!isMounted) return;
           const { chunk } = event.payload;
-          const currentId = useChatStore.getState().currentStreamingId;
+          const state = useChatStore.getState();
+          const currentId = state.currentStreamingMessageId;
+          const entryId = state.streamingEntryId;
           if (currentId && chunk) {
-            appendToMessage(currentId, chunk);
+            appendToMessage(entryId, currentId, chunk);
           }
         }
       );
@@ -71,12 +95,15 @@ export function useChatStream() {
       // Listen for chat completion
       const unlistenDone = await listen("chat-done", () => {
         if (!isMounted) return;
-        const currentId = useChatStore.getState().currentStreamingId;
+        const state = useChatStore.getState();
+        const currentId = state.currentStreamingMessageId;
+        const entryId = state.streamingEntryId;
         if (currentId) {
-          setMessageStreaming(currentId, false);
+          setMessageStreaming(entryId, currentId, false);
         }
         setIsStreaming(false);
-        setCurrentStreamingId(null);
+        setStreamingEntryId(null);
+        setCurrentStreamingMessageId(null);
       });
       if (isMounted) unlisteners.push(unlistenDone);
       else unlistenDone();
@@ -87,16 +114,20 @@ export function useChatStream() {
         (event) => {
           if (!isMounted) return;
           console.error("Chat error:", event.payload.message);
-          const currentId = useChatStore.getState().currentStreamingId;
+          const state = useChatStore.getState();
+          const currentId = state.currentStreamingMessageId;
+          const entryId = state.streamingEntryId;
           if (currentId) {
             appendToMessage(
+              entryId,
               currentId,
               `\n\n*Error: ${event.payload.message}*`
             );
-            setMessageStreaming(currentId, false);
+            setMessageStreaming(entryId, currentId, false);
           }
           setIsStreaming(false);
-          setCurrentStreamingId(null);
+          setStreamingEntryId(null);
+          setCurrentStreamingMessageId(null);
         }
       );
       if (isMounted) unlisteners.push(unlistenError);
@@ -113,7 +144,8 @@ export function useChatStream() {
     appendToMessage,
     setMessageStreaming,
     setIsStreaming,
-    setCurrentStreamingId,
+    setStreamingEntryId,
+    setCurrentStreamingMessageId,
   ]);
 
   const sendMessage = useCallback(
@@ -134,43 +166,71 @@ export function useChatStream() {
         setSafetyWarning(safetyResult);
       }
 
-      // Add user message
-      addMessage({ role: "user", content: message });
+      // Persist user message if we have a journal ID
+      if (journalId) {
+        try {
+          await invoke("create_chat_message", {
+            journalId,
+            role: "user",
+            content: message,
+            metadata: null,
+          });
+        } catch (error) {
+          console.error("Failed to persist user message:", error);
+        }
+      }
+
+      // Add user message to local state
+      addMessage(journalId, { role: "user", content: message });
 
       // Create placeholder for assistant response
-      const assistantId = addMessage({
+      const assistantId = addMessage(journalId, {
         role: "assistant",
         content: "",
         isStreaming: true,
       });
 
       setIsStreaming(true);
-      setCurrentStreamingId(assistantId);
+      setStreamingEntryId(journalId);
+      setCurrentStreamingMessageId(assistantId);
 
-      // Start streaming
+      // Start streaming (backend will persist assistant response on completion)
       try {
         await invoke("chat_stream", {
           message,
+          journalId: journalId ?? undefined,
           contextLimit: contextLimit ?? 5,
         });
       } catch (error) {
         console.error("Failed to start chat stream:", error);
-        appendToMessage(assistantId, `*Error: ${error}*`);
-        setMessageStreaming(assistantId, false);
+        appendToMessage(journalId, assistantId, `*Error: ${error}*`);
+        setMessageStreaming(journalId, assistantId, false);
         setIsStreaming(false);
-        setCurrentStreamingId(null);
+        setStreamingEntryId(null);
+        setCurrentStreamingMessageId(null);
       }
     },
     [
+      journalId,
       addMessage,
       appendToMessage,
       setMessageStreaming,
       setIsStreaming,
-      setCurrentStreamingId,
+      setStreamingEntryId,
+      setCurrentStreamingMessageId,
       setSafetyWarning,
       setShowSafetyModal,
     ]
   );
 
-  return { sendMessage };
+  return {
+    sendMessage,
+    isStreaming: isStreaming && streamingEntryId === journalId,
+    isStreamingAny: isStreaming,
+  };
+}
+
+/** Legacy hook for global chat (no journal scope) - for backward compatibility */
+export function useChatStream() {
+  return useEntryChatStream(null);
 }

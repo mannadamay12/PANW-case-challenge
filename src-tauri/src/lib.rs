@@ -3,8 +3,11 @@ mod error;
 pub mod llm;
 pub mod ml;
 
-use db::journals::{CreateEntryResponse, DeleteResponse, Journal};
+use db::chat::{ChatMessage, CreateMessageParams};
+use db::images::{EntryImage, InsertImageParams};
+use db::journals::{CreateEntryResponse, DayEmotions, DeleteResponse, Journal, JournalStats, StreakInfo};
 use db::search::HybridSearchResult;
+use db::templates::{CreateTemplateResponse, DeleteTemplateResponse, Template};
 use db::DbPool;
 use error::AppError;
 use futures::StreamExt;
@@ -16,6 +19,7 @@ use tauri::{AppHandle, Emitter, Manager, State};
 
 // Re-export for external use
 pub use db::journals;
+pub use db::templates;
 pub use error::AppError as Error;
 
 /// Create a new journal entry.
@@ -68,11 +72,35 @@ fn update_entry(
     )
 }
 
-/// Delete a journal entry.
+/// Delete a journal entry and its associated images.
 #[tauri::command]
-fn delete_entry(pool: State<'_, DbPool>, id: String) -> Result<DeleteResponse, AppError> {
+fn delete_entry(
+    app: AppHandle,
+    pool: State<'_, DbPool>,
+    id: String,
+) -> Result<DeleteResponse, AppError> {
     let conn = pool.get()?;
-    journals::delete(&conn, &id)
+
+    // Get images before deletion (CASCADE will remove DB records)
+    let images = db::images::get_images_for_entry(&conn, &id)?;
+
+    // Delete the journal entry (CASCADE handles DB cleanup)
+    let result = journals::delete(&conn, &id)?;
+
+    // Clean up image files from disk
+    if let Ok(app_dir) = app.path().app_data_dir() {
+        for image in images {
+            let file_path = app_dir.join(&image.relative_path);
+            if file_path.exists() {
+                let _ = std::fs::remove_file(&file_path);
+            }
+        }
+        // Try to remove the entry's image directory if empty
+        let entry_images_dir = app_dir.join("images").join(&id);
+        let _ = std::fs::remove_dir(&entry_images_dir);
+    }
+
+    Ok(result)
 }
 
 /// Archive a journal entry.
@@ -91,6 +119,322 @@ fn search_entries(
 ) -> Result<Vec<Journal>, AppError> {
     let conn = pool.get()?;
     journals::search(&conn, &query, include_archived.unwrap_or(false))
+}
+
+/// Get journal statistics for the dashboard.
+#[tauri::command]
+fn get_journal_stats(pool: State<'_, DbPool>) -> Result<JournalStats, AppError> {
+    let conn = pool.get()?;
+    journals::get_stats(&conn)
+}
+
+/// Get extended streak information for the dashboard.
+#[tauri::command]
+fn get_streak_info(pool: State<'_, DbPool>) -> Result<StreakInfo, AppError> {
+    let conn = pool.get()?;
+    journals::get_streak_info(&conn)
+}
+
+/// Get emotion trends for a date range.
+#[tauri::command]
+fn get_emotion_trends(
+    pool: State<'_, DbPool>,
+    start_date: String,
+    end_date: String,
+) -> Result<Vec<DayEmotions>, AppError> {
+    let conn = pool.get()?;
+    let daily_emotions = db::emotions::get_daily_emotions(&conn, &start_date, &end_date)?;
+
+    Ok(daily_emotions
+        .into_iter()
+        .map(|(date, dominant_emotion, entry_count)| DayEmotions {
+            date,
+            dominant_emotion,
+            entry_count,
+        })
+        .collect())
+}
+
+/// Get entries from the same date in previous years ("On This Day").
+#[tauri::command]
+fn get_on_this_day(pool: State<'_, DbPool>) -> Result<Vec<Journal>, AppError> {
+    let conn = pool.get()?;
+    journals::get_on_this_day(&conn)
+}
+
+// Template Commands
+
+/// Create a new journal template.
+#[tauri::command]
+fn create_template(
+    pool: State<'_, DbPool>,
+    title: String,
+    prompt: String,
+    template_text: String,
+    icon: Option<String>,
+    category: String,
+) -> Result<CreateTemplateResponse, AppError> {
+    let conn = pool.get()?;
+    templates::create(
+        &conn,
+        &title,
+        &prompt,
+        &template_text,
+        icon.as_deref(),
+        &category,
+    )
+}
+
+/// Get a single template by ID.
+#[tauri::command]
+fn get_template(pool: State<'_, DbPool>, id: String) -> Result<Template, AppError> {
+    let conn = pool.get()?;
+    templates::get(&conn, &id)
+}
+
+/// List all templates.
+#[tauri::command]
+fn list_templates(pool: State<'_, DbPool>) -> Result<Vec<Template>, AppError> {
+    let conn = pool.get()?;
+    templates::list(&conn)
+}
+
+/// List templates by category.
+#[tauri::command]
+fn list_templates_by_category(
+    pool: State<'_, DbPool>,
+    category: String,
+) -> Result<Vec<Template>, AppError> {
+    let conn = pool.get()?;
+    templates::list_by_category(&conn, &category)
+}
+
+/// Update a template.
+#[tauri::command]
+fn update_template(
+    pool: State<'_, DbPool>,
+    id: String,
+    title: Option<String>,
+    prompt: Option<String>,
+    template_text: Option<String>,
+    icon: Option<String>,
+    category: Option<String>,
+) -> Result<Template, AppError> {
+    let conn = pool.get()?;
+    templates::update(
+        &conn,
+        &id,
+        title.as_deref(),
+        prompt.as_deref(),
+        template_text.as_deref(),
+        icon.as_deref(),
+        category.as_deref(),
+    )
+}
+
+/// Delete a template.
+#[tauri::command]
+fn delete_template(
+    pool: State<'_, DbPool>,
+    id: String,
+) -> Result<DeleteTemplateResponse, AppError> {
+    let conn = pool.get()?;
+    templates::delete(&conn, &id)
+}
+
+// Image Commands
+
+/// Upload an image for a journal entry.
+/// Saves the file to images/{entry_id}/ and records metadata in the database.
+#[tauri::command]
+fn upload_entry_image(
+    app: AppHandle,
+    pool: State<'_, DbPool>,
+    entry_id: String,
+    image_data: Vec<u8>,
+    filename: String,
+) -> Result<EntryImage, AppError> {
+    let app_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| AppError::Storage(format!("Failed to get app data directory: {}", e)))?;
+
+    let images_dir = app_dir.join("images").join(&entry_id);
+    std::fs::create_dir_all(&images_dir)
+        .map_err(|e| AppError::Storage(format!("Failed to create images directory: {}", e)))?;
+
+    // Generate unique filename to avoid conflicts
+    let ext = std::path::Path::new(&filename)
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("png");
+    let unique_filename = format!(
+        "{}_{}.{}",
+        uuid::Uuid::new_v4(),
+        sanitize_filename(&filename),
+        ext
+    );
+    let file_path = images_dir.join(&unique_filename);
+
+    // Write file
+    std::fs::write(&file_path, &image_data)
+        .map_err(|e| AppError::Storage(format!("Failed to write image file: {}", e)))?;
+
+    // Get image dimensions if possible
+    let (width, height) = get_image_dimensions(&image_data);
+
+    // Detect MIME type from extension
+    let mime_type = match ext.to_lowercase().as_str() {
+        "png" => Some("image/png".to_string()),
+        "jpg" | "jpeg" => Some("image/jpeg".to_string()),
+        "gif" => Some("image/gif".to_string()),
+        "webp" => Some("image/webp".to_string()),
+        _ => None,
+    };
+
+    let relative_path = format!("images/{}/{}", entry_id, unique_filename);
+
+    let conn = pool.get()?;
+    db::images::insert_image(
+        &conn,
+        InsertImageParams {
+            entry_id,
+            filename: unique_filename,
+            relative_path,
+            mime_type,
+            file_size: Some(image_data.len() as i64),
+            width,
+            height,
+        },
+    )
+}
+
+/// Get all images for a journal entry.
+#[tauri::command]
+fn get_entry_images(
+    pool: State<'_, DbPool>,
+    entry_id: String,
+) -> Result<Vec<EntryImage>, AppError> {
+    let conn = pool.get()?;
+    db::images::get_images_for_entry(&conn, &entry_id)
+}
+
+/// Delete an image by ID.
+/// Removes both the file and database record.
+#[tauri::command]
+fn delete_entry_image(
+    app: AppHandle,
+    pool: State<'_, DbPool>,
+    image_id: String,
+) -> Result<(), AppError> {
+    let conn = pool.get()?;
+
+    // Get image info before deleting
+    let image = db::images::get_image(&conn, &image_id)?;
+
+    // Delete from database
+    db::images::delete_image(&conn, &image_id)?;
+
+    // Delete the file
+    let app_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| AppError::Storage(format!("Failed to get app data directory: {}", e)))?;
+
+    let file_path = app_dir.join(&image.relative_path);
+    if file_path.exists() {
+        std::fs::remove_file(&file_path)
+            .map_err(|e| AppError::Storage(format!("Failed to delete image file: {}", e)))?;
+    }
+
+    Ok(())
+}
+
+/// Get image data as base64 for display in the frontend.
+#[tauri::command]
+fn get_image_data(app: AppHandle, relative_path: String) -> Result<String, AppError> {
+    let app_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| AppError::Storage(format!("Failed to get app data directory: {}", e)))?;
+
+    let file_path = app_dir.join(&relative_path);
+    if !file_path.exists() {
+        return Err(AppError::NotFound(format!(
+            "Image not found: {}",
+            relative_path
+        )));
+    }
+
+    let data = std::fs::read(&file_path)
+        .map_err(|e| AppError::Storage(format!("Failed to read image file: {}", e)))?;
+
+    use base64::Engine;
+    Ok(base64::engine::general_purpose::STANDARD.encode(&data))
+}
+
+/// Sanitize a filename to remove problematic characters.
+fn sanitize_filename(name: &str) -> String {
+    name.chars()
+        .filter(|c| c.is_alphanumeric() || *c == '-' || *c == '_' || *c == '.')
+        .take(50)
+        .collect()
+}
+
+/// Try to get image dimensions from raw bytes.
+/// Returns (Some(width), Some(height)) if successful, (None, None) otherwise.
+fn get_image_dimensions(data: &[u8]) -> (Option<i32>, Option<i32>) {
+    // Try to parse PNG dimensions (simple check)
+    if data.len() > 24 && &data[0..8] == b"\x89PNG\r\n\x1a\n" {
+        let width = u32::from_be_bytes([data[16], data[17], data[18], data[19]]);
+        let height = u32::from_be_bytes([data[20], data[21], data[22], data[23]]);
+        return (Some(width as i32), Some(height as i32));
+    }
+
+    // Try to parse JPEG dimensions (more complex, skip for now)
+    // For production, consider using the image crate
+
+    (None, None)
+}
+
+// Chat Message Commands
+
+/// List all chat messages for a journal entry.
+#[tauri::command]
+fn list_entry_messages(
+    pool: State<'_, DbPool>,
+    journal_id: String,
+) -> Result<Vec<ChatMessage>, AppError> {
+    let conn = pool.get()?;
+    db::chat::list_for_entry(&conn, &journal_id)
+}
+
+/// Create a new chat message for a journal entry.
+#[tauri::command]
+fn create_chat_message(
+    pool: State<'_, DbPool>,
+    journal_id: String,
+    role: String,
+    content: String,
+    metadata: Option<String>,
+) -> Result<ChatMessage, AppError> {
+    let conn = pool.get()?;
+    db::chat::create(
+        &conn,
+        CreateMessageParams {
+            journal_id,
+            role,
+            content,
+            metadata,
+        },
+    )
+}
+
+/// Delete all chat messages for a journal entry.
+#[tauri::command]
+fn delete_entry_messages(pool: State<'_, DbPool>, journal_id: String) -> Result<usize, AppError> {
+    let conn = pool.get()?;
+    db::chat::delete_for_entry(&conn, &journal_id)
 }
 
 // ML Commands
@@ -303,6 +647,7 @@ async fn generate_missing_titles(
 
 /// Stream a chat response from the LLM with optional RAG context.
 /// Emits 'chat-chunk' events for each token and 'chat-done' or 'chat-error' on completion.
+/// When journal_id is provided, the conversation is scoped to that entry and messages are persisted.
 #[tauri::command]
 async fn chat_stream(
     app: AppHandle,
@@ -310,6 +655,7 @@ async fn chat_stream(
     ml: State<'_, MlState>,
     llm: State<'_, LlmState>,
     message: String,
+    journal_id: Option<String>,
     context_limit: Option<usize>,
 ) -> Result<(), AppError> {
     let context_limit = context_limit.unwrap_or(5);
@@ -331,14 +677,32 @@ async fn chat_stream(
         return Ok(());
     }
 
-    // Get RAG context from journal entries
-    let context = llm::chat::get_rag_context(pool.inner(), ml.inner(), &message, context_limit)
-        .await
-        .ok();
+    // Get RAG context from journal entries, prioritizing current entry if provided
+    let context = llm::chat::get_rag_context(
+        pool.inner(),
+        ml.inner(),
+        &message,
+        journal_id.as_deref(),
+        context_limit,
+    )
+    .await
+    .ok();
+
+    // Get recent chat history for this entry if journal_id is provided
+    let chat_history = if let Some(ref jid) = journal_id {
+        let conn = pool.get()?;
+        db::chat::get_recent_for_entry(&conn, jid, 10).ok()
+    } else {
+        None
+    };
 
     // Build the prompt with context
     let chat_service = llm::ChatService::new(llm.ollama.clone(), llm.safety.clone());
-    let messages = chat_service.build_prompt(&message, context.as_deref());
+    let messages = chat_service.build_prompt_with_history(
+        &message,
+        context.as_deref(),
+        chat_history.as_deref(),
+    );
 
     // Stream the response
     match chat_service.chat_stream(messages).await {
@@ -373,7 +737,23 @@ async fn chat_stream(
                                         done: false,
                                     },
                                 );
+                                full_response = augmented;
                             }
+
+                            // Persist the assistant's response if journal_id was provided
+                            if let Some(ref jid) = journal_id {
+                                let conn = pool.get()?;
+                                let _ = db::chat::create(
+                                    &conn,
+                                    CreateMessageParams {
+                                        journal_id: jid.clone(),
+                                        role: "assistant".to_string(),
+                                        content: full_response.clone(),
+                                        metadata: None,
+                                    },
+                                );
+                            }
+
                             let _ = app.emit("chat-done", ());
                             break;
                         }
@@ -428,6 +808,10 @@ pub fn run() {
             let pool =
                 db::init(&db_path).map_err(|e| format!("Failed to initialize database: {}", e))?;
 
+            // Initialize images directory
+            let images_dir = app_dir.join("images");
+            std::fs::create_dir_all(&images_dir)?;
+
             // Initialize ML state
             let models_dir = app_dir.join("models");
             std::fs::create_dir_all(&models_dir)?;
@@ -453,6 +837,23 @@ pub fn run() {
             delete_entry,
             archive_entry,
             search_entries,
+            get_journal_stats,
+            get_streak_info,
+            get_emotion_trends,
+            get_on_this_day,
+            create_template,
+            get_template,
+            list_templates,
+            list_templates_by_category,
+            update_template,
+            delete_template,
+            upload_entry_image,
+            get_entry_images,
+            delete_entry_image,
+            get_image_data,
+            list_entry_messages,
+            create_chat_message,
+            delete_entry_messages,
             get_model_status,
             initialize_models,
             get_entry_emotions,

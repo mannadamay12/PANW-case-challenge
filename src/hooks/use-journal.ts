@@ -19,7 +19,27 @@ export const journalKeys = {
   detail: (id: string) => [...journalKeys.details(), id] as const,
   search: (query: string, includeArchived = false) =>
     [...journalKeys.all, "search", query, { includeArchived }] as const,
+  stats: () => [...journalKeys.all, "stats"] as const,
 };
+
+// Stats types
+export interface JournalStats {
+  total_entries: number;
+  streak_days: number;
+  entries_this_week: number;
+  entries_this_month: number;
+}
+
+// Get journal statistics for dashboard
+export function useJournalStats() {
+  return useQuery({
+    queryKey: journalKeys.stats(),
+    queryFn: async () => {
+      return invoke<JournalStats>("get_journal_stats");
+    },
+    refetchOnWindowFocus: true,
+  });
+}
 
 // List entries with optional filters
 export function useEntries(params: ListEntriesParams = {}) {

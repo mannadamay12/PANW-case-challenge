@@ -1,3 +1,4 @@
+use crate::db::chat::ChatMessage as DbChatMessage;
 use crate::db::search::HybridSearchResult;
 use crate::db::DbPool;
 use crate::error::AppError;
@@ -33,6 +34,16 @@ impl ChatService {
         user_message: &str,
         context: Option<&[HybridSearchResult]>,
     ) -> Vec<ChatMessage> {
+        self.build_prompt_with_history(user_message, context, None)
+    }
+
+    /// Build the chat prompt with system context, RAG results, and chat history.
+    pub fn build_prompt_with_history(
+        &self,
+        user_message: &str,
+        context: Option<&[HybridSearchResult]>,
+        chat_history: Option<&[DbChatMessage]>,
+    ) -> Vec<ChatMessage> {
         let mut messages = Vec::new();
 
         // System prompt with guidelines
@@ -55,6 +66,16 @@ impl ChatService {
             content: system_content,
         });
 
+        // Add chat history if available
+        if let Some(history) = chat_history {
+            for msg in history {
+                messages.push(ChatMessage {
+                    role: msg.role.clone(),
+                    content: msg.content.clone(),
+                });
+            }
+        }
+
         messages.push(ChatMessage {
             role: "user".to_string(),
             content: user_message.to_string(),
@@ -76,12 +97,29 @@ impl ChatService {
 }
 
 /// Retrieve relevant journal context for RAG.
+/// When current_entry_id is provided, that entry is always included first in the results.
 pub async fn get_rag_context(
     pool: &DbPool,
     ml: &MlState,
     query: &str,
+    current_entry_id: Option<&str>,
     limit: usize,
 ) -> Result<Vec<HybridSearchResult>, AppError> {
+    let mut results = Vec::new();
+
+    // If we have a current entry, fetch it first and include it prominently
+    if let Some(entry_id) = current_entry_id {
+        let conn = pool.get()?;
+        if let Ok(entry) = crate::db::journals::get(&conn, entry_id) {
+            results.push(HybridSearchResult {
+                journal: entry,
+                score: 1.0, // Highest priority
+                fts_rank: Some(1),
+                vec_rank: Some(1),
+            });
+        }
+    }
+
     // Try to get embedding for semantic search
     let embedding = if ml.models_ready().await.embedding_downloaded {
         match ml.get_embedding_model().await {
@@ -94,12 +132,24 @@ pub async fn get_rag_context(
 
     let conn = pool.get()?;
 
-    if let Some(ref emb) = embedding {
-        crate::db::search::hybrid_search(&conn, query, Some(emb), limit, false)
+    // Search for related entries (excluding current if already added)
+    let search_results = if let Some(ref emb) = embedding {
+        crate::db::search::hybrid_search(&conn, query, Some(emb), limit, false)?
     } else {
-        // Fall back to FTS-only search
-        crate::db::search::fts_only_search(&conn, query, limit, false)
+        crate::db::search::fts_only_search(&conn, query, limit, false)?
+    };
+
+    // Add search results, excluding the current entry to avoid duplication
+    for result in search_results {
+        if current_entry_id.is_none() || result.journal.id != current_entry_id.unwrap() {
+            results.push(result);
+        }
     }
+
+    // Limit total results
+    results.truncate(limit);
+
+    Ok(results)
 }
 
 /// Truncate content to a maximum length, breaking at word boundaries.
