@@ -5,7 +5,9 @@ pub mod ml;
 
 use db::chat::{ChatMessage, CreateMessageParams};
 use db::images::{EntryImage, InsertImageParams};
-use db::journals::{CreateEntryResponse, DayEmotions, DeleteResponse, Journal, JournalStats, StreakInfo};
+use db::journals::{
+    CreateEntryResponse, DayEmotions, DeleteResponse, Journal, JournalStats, StreakInfo,
+};
 use db::search::HybridSearchResult;
 use db::templates::{CreateTemplateResponse, DeleteTemplateResponse, Template};
 use db::DbPool;
@@ -686,12 +688,15 @@ async fn chat_stream(
         context_limit,
     )
     .await
+    .map_err(|e| log::warn!("RAG context retrieval failed: {}", e))
     .ok();
 
     // Get recent chat history for this entry if journal_id is provided
     let chat_history = if let Some(ref jid) = journal_id {
         let conn = pool.get()?;
-        db::chat::get_recent_for_entry(&conn, jid, 10).ok()
+        db::chat::get_recent_for_entry(&conn, jid, 10)
+            .map_err(|e| log::warn!("Chat history retrieval failed: {}", e))
+            .ok()
     } else {
         None
     };
@@ -729,14 +734,25 @@ async fn chat_stream(
                             let augmented =
                                 chat_service.augment_with_safety(&full_response, &safety_result);
                             if augmented != full_response {
-                                let suffix = augmented.strip_prefix(&full_response).unwrap_or("");
-                                let _ = app.emit(
-                                    "chat-chunk",
-                                    ChatChunkEvent {
-                                        chunk: suffix.to_string(),
-                                        done: false,
-                                    },
-                                );
+                                // Safety augmentation should append to the response, preserving the prefix
+                                let suffix = if augmented.starts_with(&full_response) {
+                                    &augmented[full_response.len()..]
+                                } else {
+                                    // Augmentation didn't preserve prefix - log warning and emit full augmented text
+                                    log::warn!(
+                                        "Safety augmentation did not preserve response prefix"
+                                    );
+                                    augmented.as_str()
+                                };
+                                if !suffix.is_empty() {
+                                    let _ = app.emit(
+                                        "chat-chunk",
+                                        ChatChunkEvent {
+                                            chunk: suffix.to_string(),
+                                            done: false,
+                                        },
+                                    );
+                                }
                                 full_response = augmented;
                             }
 

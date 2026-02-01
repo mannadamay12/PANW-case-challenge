@@ -13,6 +13,8 @@
     "windows": [
       {
         "title": "MindScribe",
+        "titleBarStyle": "overlay",
+        "hiddenTitle": true,
         "width": 1024,
         "height": 768
       }

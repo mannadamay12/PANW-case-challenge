@@ -2,15 +2,37 @@
 @plugin "@tailwindcss/typography";
 
 @theme {
-  /* Digital Sanctuary Palette */
+  /* Minimalist Muted Palette */
   --color-sanctuary-bg: #fafaf9;
   --color-sanctuary-card: #ffffff;
   --color-sanctuary-border: #e7e5e4;
   --color-sanctuary-text: #1c1917;
   --color-sanctuary-muted: #78716c;
-  --color-sanctuary-accent: #4f46e5;
-  --color-sanctuary-accent-hover: #4338ca;
+  --color-sanctuary-accent: #57534e;
+  --color-sanctuary-accent-hover: #44403c;
+
+  /* Dark mode colors (used via CSS variables below) */
+  --color-sanctuary-bg-dark: #1c1917;
+  --color-sanctuary-card-dark: #292524;
+  --color-sanctuary-border-dark: #44403c;
+  --color-sanctuary-text-dark: #fafaf9;
+  --color-sanctuary-muted-dark: #a8a29e;
+  --color-sanctuary-accent-dark: #a8a29e;
+  --color-sanctuary-accent-hover-dark: #d6d3d1;
 
   /* Typography */
   --font-serif: Georgia, Cambria, "Times New Roman", Times, serif;
+}
+
+/* Dark mode support via system preference */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-sanctuary-bg: var(--color-sanctuary-bg-dark);
+    --color-sanctuary-card: var(--color-sanctuary-card-dark);
+    --color-sanctuary-border: var(--color-sanctuary-border-dark);
+    --color-sanctuary-text: var(--color-sanctuary-text-dark);
+    --color-sanctuary-muted: var(--color-sanctuary-muted-dark);
+    --color-sanctuary-accent: var(--color-sanctuary-accent-dark);
+    --color-sanctuary-accent-hover: var(--color-sanctuary-accent-hover-dark);
+  }
 }

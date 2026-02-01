@@ -10,6 +10,9 @@ interface ChatState {
   // Loading state per entry
   loadingEntries: Set<string>;
 
+  // Load error state per entry
+  loadErrors: Map<string, Error>;
+
   // Actions for managing messages
   loadMessages: (journalId: string) => Promise<void>;
   addMessage: (journalId: string | null, message: Omit<ChatMessage, "id" | "timestamp" | "journalId">) => string;
@@ -18,6 +21,7 @@ interface ChatState {
   setMessageStreaming: (journalId: string | null, id: string, isStreaming: boolean) => void;
   clearMessages: (journalId: string) => void;
   getMessages: (journalId: string | null) => ChatMessage[];
+  getLoadError: (journalId: string | null) => Error | undefined;
 
   // Streaming state
   isStreaming: boolean;
@@ -52,6 +56,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   // Messages by entry
   messagesByEntry: {},
   loadingEntries: new Set(),
+  loadErrors: new Map(),
 
   loadMessages: async (journalId: string) => {
     const state = get();
@@ -71,20 +76,26 @@ export const useChatStore = create<ChatState>((set, get) => ({
       set((s) => {
         const newLoadingEntries = new Set(s.loadingEntries);
         newLoadingEntries.delete(journalId);
+        const newLoadErrors = new Map(s.loadErrors);
+        newLoadErrors.delete(journalId);
         return {
           messagesByEntry: {
             ...s.messagesByEntry,
             [journalId]: messages,
           },
           loadingEntries: newLoadingEntries,
+          loadErrors: newLoadErrors,
         };
       });
     } catch (error) {
       console.error("Failed to load messages:", error);
+      const err = error instanceof Error ? error : new Error(String(error));
       set((s) => {
         const newLoadingEntries = new Set(s.loadingEntries);
         newLoadingEntries.delete(journalId);
-        return { loadingEntries: newLoadingEntries };
+        const newLoadErrors = new Map(s.loadErrors);
+        newLoadErrors.set(journalId, err);
+        return { loadingEntries: newLoadingEntries, loadErrors: newLoadErrors };
       });
     }
   },
@@ -158,6 +169,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
   getMessages: (journalId) => {
     const key = getEntryKey(journalId);
     return get().messagesByEntry[key] || [];
+  },
+
+  getLoadError: (journalId) => {
+    const key = getEntryKey(journalId);
+    return get().loadErrors.get(key);
   },
 
   // Streaming state
