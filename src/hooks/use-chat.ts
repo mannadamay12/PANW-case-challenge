@@ -40,6 +40,7 @@ export function useCheckSafety() {
 export function useEntryMessages(journalId: string | null) {
   const loadMessages = useChatStore((s) => s.loadMessages);
   const getMessages = useChatStore((s) => s.getMessages);
+  const getLoadError = useChatStore((s) => s.getLoadError);
   const loadingEntries = useChatStore((s) => s.loadingEntries);
 
   useEffect(() => {
@@ -50,8 +51,9 @@ export function useEntryMessages(journalId: string | null) {
 
   const messages = getMessages(journalId);
   const isLoading = journalId ? loadingEntries.has(journalId) : false;
+  const loadError = getLoadError(journalId);
 
-  return { messages, isLoading };
+  return { messages, isLoading, loadError };
 }
 
 /** Hook to manage chat streaming scoped to a journal entry */
@@ -203,7 +205,8 @@ export function useEntryChatStream(journalId: string | null) {
         });
       } catch (error) {
         console.error("Failed to start chat stream:", error);
-        appendToMessage(journalId, assistantId, `*Error: ${error}*`);
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        appendToMessage(journalId, assistantId, `*Error: ${errorMessage}*`);
         setMessageStreaming(journalId, assistantId, false);
         setIsStreaming(false);
         setStreamingEntryId(null);

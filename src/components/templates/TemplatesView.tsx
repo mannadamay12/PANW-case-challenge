@@ -84,14 +84,14 @@ export function TemplatesView() {
 
   return (
     <div className="h-full flex flex-col bg-white">
-      {/* Header */}
-      <header className="border-b border-sanctuary-border px-6 py-4">
+      {/* Compact header */}
+      <div className="px-6 py-4 border-b border-sanctuary-border">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
-            <BookTemplate className="h-6 w-6 text-sanctuary-accent" />
-            <h1 className="text-xl font-semibold text-sanctuary-text">Library</h1>
+            <BookTemplate className="h-5 w-5 text-sanctuary-muted" />
+            <h1 className="text-lg font-medium text-sanctuary-text">Library</h1>
           </div>
-          <Button onClick={handleNewTemplate}>
+          <Button onClick={handleNewTemplate} size="sm">
             <Plus className="h-4 w-4 mr-2" />
             New Template
           </Button>
@@ -108,7 +108,7 @@ export function TemplatesView() {
             className="w-full pl-10 pr-4 py-2 rounded-lg border border-sanctuary-border bg-white text-sanctuary-text placeholder:text-sanctuary-muted/50 focus:outline-none focus:ring-2 focus:ring-sanctuary-accent"
           />
         </div>
-      </header>
+      </div>
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto p-6">

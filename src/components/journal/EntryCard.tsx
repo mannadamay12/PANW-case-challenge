@@ -5,7 +5,6 @@ import { useArchiveEntry } from "../../hooks/use-journal";
 import { useUIStore } from "../../stores/ui-store";
 import { cn } from "../../lib/utils";
 import { EmotionBadges } from "./EmotionBadges";
-import { EntryTypeBadge } from "./EntryTypeSelector";
 import { deriveTitle, formatEntryDate } from "../../lib/entry-utils";
 
 interface EntryCardProps {
@@ -118,10 +117,9 @@ export function EntryCard({ entry, isSelected }: EntryCardProps) {
         </p>
       )}
 
-      {/* Emotions and metadata row */}
-      <div className="mt-2 flex items-center gap-2 flex-wrap">
+      {/* Emotions row (muted grey badges) */}
+      <div className="mt-2">
         <EmotionBadges entryId={entry.id} compact />
-        <EntryTypeBadge type={entry.entry_type} />
       </div>
 
       {/* Date and archived badge */}

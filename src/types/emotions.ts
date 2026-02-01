@@ -24,46 +24,10 @@ export interface HybridSearchParams {
   includeArchived?: boolean;
 }
 
-// Emotion display configuration
-export const EMOTION_COLORS: Record<string, string> = {
-  // Positive emotions
-  joy: "bg-yellow-100 text-yellow-800",
-  love: "bg-pink-100 text-pink-800",
-  admiration: "bg-purple-100 text-purple-800",
-  gratitude: "bg-green-100 text-green-800",
-  optimism: "bg-lime-100 text-lime-800",
-  excitement: "bg-orange-100 text-orange-800",
-  amusement: "bg-amber-100 text-amber-800",
-  pride: "bg-indigo-100 text-indigo-800",
-  relief: "bg-teal-100 text-teal-800",
-  approval: "bg-emerald-100 text-emerald-800",
-  caring: "bg-rose-100 text-rose-800",
-  desire: "bg-fuchsia-100 text-fuchsia-800",
+// Muted emotion display - all emotions use the same subtle grey styling
+const MUTED_EMOTION_STYLE = "bg-stone-100 text-stone-600";
 
-  // Negative emotions
-  sadness: "bg-blue-100 text-blue-800",
-  anger: "bg-red-100 text-red-800",
-  fear: "bg-slate-100 text-slate-800",
-  disappointment: "bg-gray-100 text-gray-800",
-  annoyance: "bg-orange-100 text-orange-800",
-  disapproval: "bg-red-100 text-red-800",
-  disgust: "bg-green-100 text-green-800",
-  embarrassment: "bg-pink-100 text-pink-800",
-  grief: "bg-indigo-100 text-indigo-800",
-  nervousness: "bg-violet-100 text-violet-800",
-  remorse: "bg-purple-100 text-purple-800",
-
-  // Cognitive emotions
-  confusion: "bg-amber-100 text-amber-800",
-  curiosity: "bg-cyan-100 text-cyan-800",
-  realization: "bg-sky-100 text-sky-800",
-  surprise: "bg-yellow-100 text-yellow-800",
-
-  // Neutral
-  neutral: "bg-gray-100 text-gray-600",
-};
-
-// Get display color for an emotion
-export function getEmotionColor(emotion: string): string {
-  return EMOTION_COLORS[emotion.toLowerCase()] ?? "bg-gray-100 text-gray-600";
+// Get display color for an emotion (now always returns muted grey)
+export function getEmotionColor(_emotion: string): string {
+  return MUTED_EMOTION_STYLE;
 }

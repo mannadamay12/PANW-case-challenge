@@ -1,6 +1,18 @@
 import { create } from "zustand";
+import type { EntryType } from "../types/journal";
 
-export type MainView = "dashboard" | "journal" | "chat" | "library";
+export type MainView = "journal" | "library";
+export type EditorFontSize = "default" | "medium" | "large";
+
+// Editor context for titlebar integration
+export interface EditorContext {
+  entryId: string | null;
+  entryType: EntryType;
+  isArchived: boolean;
+  onChangeEntryType: (type: EntryType) => void;
+  onArchive: () => void;
+  onDelete: () => void;
+}
 
 interface UIState {
   // View switching
@@ -49,11 +61,21 @@ interface UIState {
   isAIPanelOpen: boolean;
   setAIPanelOpen: (open: boolean) => void;
   toggleAIPanel: () => void;
+
+  // Editor preferences
+  editorFontSize: EditorFontSize;
+  setEditorFontSize: (size: EditorFontSize) => void;
+  showWordCount: boolean;
+  toggleShowWordCount: () => void;
+
+  // Editor context for titlebar
+  editorContext: EditorContext | null;
+  setEditorContext: (context: EditorContext | null) => void;
 }
 
 export const useUIStore = create<UIState>((set) => ({
-  // View switching - default to dashboard
-  activeView: "dashboard",
+  // View switching - default to journal
+  activeView: "journal",
   setActiveView: (view) => set({ activeView: view }),
 
   // Selection
@@ -113,4 +135,14 @@ export const useUIStore = create<UIState>((set) => ({
   isAIPanelOpen: false,
   setAIPanelOpen: (open) => set({ isAIPanelOpen: open }),
   toggleAIPanel: () => set((s) => ({ isAIPanelOpen: !s.isAIPanelOpen })),
+
+  // Editor preferences
+  editorFontSize: "default",
+  setEditorFontSize: (size) => set({ editorFontSize: size }),
+  showWordCount: false,
+  toggleShowWordCount: () => set((s) => ({ showWordCount: !s.showWordCount })),
+
+  // Editor context for titlebar
+  editorContext: null,
+  setEditorContext: (context) => set({ editorContext: context }),
 }));
