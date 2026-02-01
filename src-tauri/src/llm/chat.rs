@@ -228,7 +228,12 @@ pub async fn get_rag_context(
 
     // Add search results, excluding the current entry to avoid duplication
     for result in search_results {
-        if current_entry_id.is_none() || result.journal.id != current_entry_id.unwrap() {
+        let dominated_by_current = if let Some(entry_id) = current_entry_id {
+            result.journal.id == entry_id
+        } else {
+            false
+        };
+        if !dominated_by_current {
             results.push(result);
         }
     }

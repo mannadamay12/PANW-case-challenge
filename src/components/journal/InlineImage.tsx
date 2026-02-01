@@ -54,7 +54,10 @@ export function InlineImage({
         }
       } catch (err) {
         if (!cancelled) {
-          setError(err instanceof Error ? err.message : "Failed to load image");
+          const message = err instanceof Error
+            ? err.message
+            : `Failed to load image: ${String(err)}`;
+          setError(message);
         }
       } finally {
         if (!cancelled) {
