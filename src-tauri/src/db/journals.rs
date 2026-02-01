@@ -128,42 +128,48 @@ pub fn list(
     let limit = limit.unwrap_or(50).min(100);
     let offset = offset.unwrap_or(0);
 
-    let mut sql = String::from(
-        "SELECT id, content, title, entry_type, created_at, updated_at, is_archived FROM journals",
-    );
-
-    if let Some(archived) = archived {
-        sql.push_str(&format!(
-            " WHERE is_archived = {}",
-            if archived { 1 } else { 0 }
-        ));
-    }
-
-    sql.push_str(" ORDER BY created_at DESC LIMIT ?1 OFFSET ?2");
+    let (sql, use_archived_param) = if archived.is_some() {
+        (
+            "SELECT id, content, title, entry_type, created_at, updated_at, is_archived FROM journals WHERE is_archived = ?1 ORDER BY created_at DESC LIMIT ?2 OFFSET ?3".to_string(),
+            true,
+        )
+    } else {
+        (
+            "SELECT id, content, title, entry_type, created_at, updated_at, is_archived FROM journals ORDER BY created_at DESC LIMIT ?1 OFFSET ?2".to_string(),
+            false,
+        )
+    };
 
     let mut stmt = conn.prepare(&sql)?;
-    let journals: Vec<Journal> = stmt
-        .query_map(params![limit, offset], |row| {
-            let entry_type_str: Option<String> = row.get(3)?;
-            Ok(Journal {
-                id: row.get(0)?,
-                content: row.get(1)?,
-                title: row.get(2)?,
-                entry_type: entry_type_str
-                    .as_deref()
-                    .unwrap_or_default()
-                    .parse()
-                    .unwrap_or_default(),
-                created_at: parse_datetime(row.get::<_, String>(4)?),
-                updated_at: parse_datetime(row.get::<_, String>(5)?),
-                is_archived: row.get(6)?,
-            })
-        })?
-        .filter_map(|r| {
-            r.map_err(|e| log::error!("Failed to parse journal row: {}", e))
-                .ok()
+
+    let row_mapper = |row: &rusqlite::Row| {
+        let entry_type_str: Option<String> = row.get(3)?;
+        Ok(Journal {
+            id: row.get(0)?,
+            content: row.get(1)?,
+            title: row.get(2)?,
+            entry_type: entry_type_str
+                .as_deref()
+                .unwrap_or_default()
+                .parse()
+                .unwrap_or_default(),
+            created_at: parse_datetime(row.get::<_, String>(4)?),
+            updated_at: parse_datetime(row.get::<_, String>(5)?),
+            is_archived: row.get(6)?,
         })
-        .collect();
+    };
+
+    let journals: Vec<Journal> = if use_archived_param {
+        let archived_val: i32 = if archived.unwrap_or(false) { 1 } else { 0 };
+        stmt.query_map(params![archived_val, limit, offset], row_mapper)?
+    } else {
+        stmt.query_map(params![limit, offset], row_mapper)?
+    }
+    .filter_map(|r| {
+        r.map_err(|e| log::error!("Failed to parse journal row: {}", e))
+            .ok()
+    })
+    .collect();
 
     Ok(journals)
 }

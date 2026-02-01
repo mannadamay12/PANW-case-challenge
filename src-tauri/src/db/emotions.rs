@@ -64,6 +64,12 @@ pub fn get_daily_emotions(
     for (date, entry_ids) in date_entries {
         let entry_count = entry_ids.len() as u32;
 
+        // Guard against empty entry_ids (would produce malformed SQL)
+        if entry_ids.is_empty() {
+            results.push((date, None, 0));
+            continue;
+        }
+
         // Aggregate emotions across all entries for this date
         let placeholders: String = entry_ids.iter().map(|_| "?").collect::<Vec<_>>().join(",");
         let sql = format!(

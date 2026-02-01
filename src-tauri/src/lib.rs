@@ -115,12 +115,19 @@ fn delete_entry(
         for image in images {
             let file_path = app_dir.join(&image.relative_path);
             if file_path.exists() {
-                let _ = std::fs::remove_file(&file_path);
+                if let Err(e) = std::fs::remove_file(&file_path) {
+                    log::warn!("Failed to delete image file {}: {}", file_path.display(), e);
+                }
             }
         }
         // Try to remove the entry's image directory if empty
         let entry_images_dir = app_dir.join("images").join(&id);
-        let _ = std::fs::remove_dir(&entry_images_dir);
+        if let Err(e) = std::fs::remove_dir(&entry_images_dir) {
+            log::debug!(
+                "Could not remove entry images directory (may not be empty): {}",
+                e
+            );
+        }
     }
 
     Ok(result)
@@ -854,7 +861,7 @@ async fn chat_stream(
                                 };
 
                                 let conn = pool.get()?;
-                                let _ = db::chat::create(
+                                if let Err(e) = db::chat::create(
                                     &conn,
                                     CreateMessageParams {
                                         journal_id: jid.clone(),
@@ -862,7 +869,13 @@ async fn chat_stream(
                                         content: full_response.clone(),
                                         metadata,
                                     },
-                                );
+                                ) {
+                                    log::error!(
+                                        "Failed to persist assistant message for journal {}: {}",
+                                        jid,
+                                        e
+                                    );
+                                }
                             }
 
                             // Emit sources with the done event

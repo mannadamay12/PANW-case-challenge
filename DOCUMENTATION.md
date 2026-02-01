@@ -206,7 +206,9 @@ Triggers maintain full-text search index automatically:
 
 ### Sentiment Model Architecture
 
-![Sentiment Model Pipeline](assets/ml.png)
+<p align="center">
+  <img src="assets/ml.png" alt="Sentiment Model Pipeline" width="350">
+</p>
 
 *Figure 2: DistilBERT GoEmotions classification pipeline - from token inputs through transformer backbone to 28 emotion probabilities*
 
