@@ -44,9 +44,17 @@ MindScribe is a **local-first AI journaling application** designed for mental we
 
 ---
 
-## 3. Architecture Decisions
+## 3. System Architecture
 
-### 3.1 Why Tauri over Electron
+![System Architecture](assets/arch.png)
+
+*Figure 1: MindScribe system architecture showing Frontend (WebView), Rust Core, Sidecar (Ollama), In-Process ML, and Data Layer*
+
+---
+
+## 4. Architecture Decisions
+
+### 4.1 Why Tauri over Electron
 
 Electron bundles Chromium and Node.js, resulting in 100MB+ installers and 200MB+ baseline memory usage. For a local AI application where the LLM may require 2-4GB of RAM, this overhead is unacceptable.
 
@@ -56,7 +64,7 @@ Electron bundles Chromium and Node.js, resulting in 100MB+ installers and 200MB+
 - **Capability-Based Security**: Explicit permission model prevents frontend escapes
 - **Lower Memory Footprint**: Leaves more RAM available for ML models
 
-### 3.2 Why Local-First
+### 4.2 Why Local-First
 
 Mental health data is inherently sensitive. Cloud-based AI journaling creates risks:
 - Data breaches expose intimate thoughts
@@ -70,7 +78,7 @@ Mental health data is inherently sensitive. Cloud-based AI journaling creates ri
 - Full offline functionality
 - User trust through transparency
 
-### 3.3 Why SQLite + sqlite-vec
+### 4.3 Why SQLite + sqlite-vec
 
 Traditional RAG systems use external vector databases (Pinecone, Qdrant) requiring separate processes or cloud services.
 
@@ -86,7 +94,7 @@ Traditional RAG systems use external vector databases (Pinecone, Qdrant) requiri
 - Hybrid search combines semantic similarity with keyword precision
 - Reciprocal Rank Fusion (RRF) merges results optimally
 
-### 3.4 Why Ollama over Bundled Sidecar
+### 4.4 Why Ollama over Bundled Sidecar
 
 The architectural blueprint recommended bundling `llama-server` as a sidecar. We chose Ollama instead:
 
@@ -100,7 +108,7 @@ The architectural blueprint recommended bundling `llama-server` as a sidecar. We
 
 **Trade-off**: Requires user to install Ollama separately, but provides setup instructions and status detection in the app.
 
-### 3.5 Why TanStack Query + Zustand
+### 4.5 Why TanStack Query + Zustand
 
 React applications often conflate server state (data from backend) with client state (UI preferences). This causes unnecessary complexity and bugs.
 
@@ -119,7 +127,7 @@ React applications often conflate server state (data from backend) with client s
 
 ---
 
-## 4. Database Design
+## 5. Database Design
 
 ### Schema Overview
 
@@ -194,7 +202,13 @@ Triggers maintain full-text search index automatically:
 
 ---
 
-## 5. ML Pipeline
+## 6. ML Pipeline
+
+### Sentiment Model Architecture
+
+![Sentiment Model Pipeline](assets/ml.png)
+
+*Figure 2: DistilBERT GoEmotions classification pipeline - from token inputs through transformer backbone to 28 emotion probabilities*
 
 ### Embedding Generation
 
@@ -238,7 +252,7 @@ Where `k=60` is the smoothing constant.
 
 ---
 
-## 6. Safety System
+## 7. Safety System
 
 Mental health applications carry ethical responsibility. MindScribe implements a deterministic safety system that bypasses the LLM for crisis situations.
 
@@ -271,7 +285,7 @@ You are not alone. These feelings can get better with support.
 
 ---
 
-## 7. Key Features Summary
+## 8. Key Features Summary
 
 ### Journal Management
 - Create, edit, archive, delete entries
@@ -309,7 +323,7 @@ You are not alone. These feelings can get better with support.
 
 ---
 
-## 8. Testing Strategy
+## 9. Testing Strategy
 
 ### Unit Tests (Rust)
 
@@ -355,7 +369,7 @@ pnpm tauri build      # Full app bundle
 
 ---
 
-## 9. Security Considerations
+## 10. Security Considerations
 
 ### Data Protection
 - **At Rest**: SQLCipher encryption available (on `feat/security` branch)
@@ -376,7 +390,7 @@ pnpm tauri build      # Full app bundle
 
 ---
 
-## 10. Project Structure
+## 11. Project Structure
 
 ```
 mindscribe/
@@ -417,15 +431,17 @@ mindscribe/
 │       ├── error.rs              # Error types
 │       └── lib.rs                # Tauri commands
 │
-├── docs/                         # Documentation
-│   └── technical_doc.md          # API specifications
-├── mindScribe.md                 # Architecture blueprint
+├── assets/                       # Documentation assets
+│   ├── arch.png                  # System architecture diagram
+│   ├── ml.png                    # ML pipeline diagram
+│   ├── technical_doc.md          # API specifications
+│   └── mindScribe.md             # Architecture blueprint
 └── DOCUMENTATION.md              # This file
 ```
 
 ---
 
-## 11. References
+## 12. References
 
 - [Tauri v2 Documentation](https://v2.tauri.app)
 - [sqlite-vec](https://github.com/asg017/sqlite-vec)
