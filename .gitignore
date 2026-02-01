@@ -1,0 +1,51 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+dist-ssr/
+src-tauri/target/
+
+# Local models (large files)
+models/
+
+# Environment
+.env
+.env.local
+*.local
+
+# IDE
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# OS
+.DS_Store
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Tauri
+src-tauri/WixTools/
+src-tauri/*.dll
+
+# Claude Code local settings
+.claude/settings.local.json
+CLAUDE.md
+docs/Palo Alto Networks Case Studies.pdf
+docs/Palo Alto Networks NetSec One Pager.pdf
+mindScribe.md
+running_status.md
+TESTING_SESSION.md
+mindscribe-video
