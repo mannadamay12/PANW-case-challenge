@@ -1,6 +1,12 @@
 import { create } from "zustand";
 
+export type MainView = "journal" | "chat";
+
 interface UIState {
+  // View switching
+  activeView: MainView;
+  setActiveView: (view: MainView) => void;
+
   // Selection
   selectedEntryId: string | null;
   setSelectedEntryId: (id: string | null) => void;
@@ -29,6 +35,10 @@ interface UIState {
 }
 
 export const useUIStore = create<UIState>((set) => ({
+  // View switching
+  activeView: "journal",
+  setActiveView: (view) => set({ activeView: view }),
+
   // Selection
   selectedEntryId: null,
   setSelectedEntryId: (id) => set({ selectedEntryId: id }),
@@ -41,8 +51,9 @@ export const useUIStore = create<UIState>((set) => ({
       isEditorOpen: true,
       isNewEntry: !entryId,
       selectedEntryId: entryId ?? null,
+      activeView: "journal",
     }),
-  closeEditor: () => set({ isEditorOpen: false, isNewEntry: false }),
+  closeEditor: () => set({ isEditorOpen: false, isNewEntry: false, selectedEntryId: null }),
 
   // Sidebar
   isSidebarOpen: true,

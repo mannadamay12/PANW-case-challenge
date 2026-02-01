@@ -9,6 +9,9 @@ use crate::error::AppError;
 /// RRF constant for rank fusion (standard value)
 const RRF_K: f64 = 60.0;
 
+/// RRF result: (id, combined_score, fts_rank, vec_rank)
+type RrfResult = (String, f64, Option<usize>, Option<usize>);
+
 /// Result from hybrid search with combined score.
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct HybridSearchResult {
@@ -69,7 +72,11 @@ fn fts_search(
         .collect::<Vec<_>>()
         .join(" ");
 
-    let archived_filter = if include_archived { "" } else { "AND j.is_archived = 0" };
+    let archived_filter = if include_archived {
+        ""
+    } else {
+        "AND j.is_archived = 0"
+    };
 
     let sql = format!(
         r#"
@@ -105,13 +112,23 @@ fn vector_search(
     let vec_results = vectors::search_similar(conn, query_embedding, limit * 2)?;
 
     if !include_archived {
-        // Filter out archived entries
+        // Filter out archived entries - prepare statement once before loop
+        let mut stmt = conn.prepare("SELECT is_archived FROM journals WHERE id = ?")?;
         let mut filtered = Vec::with_capacity(vec_results.len());
         for (id, distance) in vec_results {
-            let mut stmt = conn.prepare("SELECT is_archived FROM journals WHERE id = ?")?;
-            let is_archived: bool = stmt.query_row([&id], |row| row.get(0))?;
-            if !is_archived {
-                filtered.push((id, distance));
+            match stmt.query_row([&id], |row| row.get::<_, bool>(0)) {
+                Ok(is_archived) => {
+                    if !is_archived {
+                        filtered.push((id, distance));
+                    }
+                }
+                Err(rusqlite::Error::QueryReturnedNoRows) => {
+                    log::warn!(
+                        "Orphaned embedding found: journal '{}' no longer exists",
+                        id
+                    );
+                }
+                Err(e) => return Err(e.into()),
             }
             if filtered.len() >= limit {
                 break;
@@ -129,7 +146,7 @@ fn reciprocal_rank_fusion(
     fts_results: &[(String, f64)],
     vec_results: &[(String, f64)],
     limit: usize,
-) -> Result<Vec<(String, f64, Option<usize>, Option<usize>)>, AppError> {
+) -> Result<Vec<RrfResult>, AppError> {
     let mut scores: HashMap<String, (f64, Option<usize>, Option<usize>)> = HashMap::new();
 
     // Add FTS5 contributions
@@ -154,7 +171,7 @@ fn reciprocal_rank_fusion(
         .map(|(id, (score, fts_rank, vec_rank))| (id, score, fts_rank, vec_rank))
         .collect();
 
-    results.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
+    results.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
     results.truncate(limit);
 
     Ok(results)
@@ -203,7 +220,11 @@ mod tests {
         let combined = reciprocal_rank_fusion(&fts, &vec, 10).unwrap();
 
         // 'a' and 'b' should be in top results (appear in both lists)
-        let top_ids: Vec<&str> = combined.iter().take(2).map(|(id, _, _, _)| id.as_str()).collect();
+        let top_ids: Vec<&str> = combined
+            .iter()
+            .take(2)
+            .map(|(id, _, _, _)| id.as_str())
+            .collect();
         assert!(top_ids.contains(&"a"));
         assert!(top_ids.contains(&"b"));
 

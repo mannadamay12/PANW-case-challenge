@@ -118,9 +118,7 @@ fn mean_pooling(embeddings: &Tensor, attention_mask: &Tensor) -> Result<Tensor, 
         .broadcast_mul(&mask)
         .map_err(|e| AppError::Ml(e.to_string()))?;
 
-    let summed = masked
-        .sum(1)
-        .map_err(|e| AppError::Ml(e.to_string()))?;
+    let summed = masked.sum(1).map_err(|e| AppError::Ml(e.to_string()))?;
 
     // Sum of mask for averaging
     let mask_sum = mask

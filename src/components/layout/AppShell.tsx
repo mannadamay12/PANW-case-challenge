@@ -1,4 +1,4 @@
-import { PanelLeftClose, PanelLeft, Plus, Archive } from "lucide-react";
+import { PanelLeftClose, PanelLeft, Plus, Archive, MessageCircle, BookOpen } from "lucide-react";
 import { useUIStore } from "../../stores/ui-store";
 import { useDeleteEntry } from "../../hooks/use-journal";
 import { Button } from "../ui/Button";
@@ -6,6 +6,7 @@ import { ConfirmDialog } from "../ui/ConfirmDialog";
 import { SearchBar } from "../journal/SearchBar";
 import { EntryList } from "../journal/EntryList";
 import { Editor } from "../journal/Editor";
+import { ChatView } from "../chat/ChatView";
 import { cn } from "../../lib/utils";
 
 export function AppShell() {
@@ -20,6 +21,8 @@ export function AppShell() {
     deleteConfirmId,
     setDeleteConfirmId,
     setSelectedEntryId,
+    activeView,
+    setActiveView,
   } = useUIStore();
 
   const deleteMutation = useDeleteEntry();
@@ -57,6 +60,34 @@ export function AppShell() {
           <Button variant="ghost" size="icon" onClick={toggleSidebar}>
             <PanelLeftClose className="h-5 w-5" />
           </Button>
+        </div>
+
+        {/* View tabs */}
+        <div className="flex border-b border-sanctuary-border">
+          <button
+            onClick={() => setActiveView("journal")}
+            className={cn(
+              "flex-1 flex items-center justify-center gap-2 py-3 text-sm font-medium transition-colors",
+              activeView === "journal"
+                ? "text-sanctuary-accent border-b-2 border-sanctuary-accent"
+                : "text-sanctuary-muted hover:text-sanctuary-text"
+            )}
+          >
+            <BookOpen className="h-4 w-4" />
+            Journal
+          </button>
+          <button
+            onClick={() => setActiveView("chat")}
+            className={cn(
+              "flex-1 flex items-center justify-center gap-2 py-3 text-sm font-medium transition-colors",
+              activeView === "chat"
+                ? "text-sanctuary-accent border-b-2 border-sanctuary-accent"
+                : "text-sanctuary-muted hover:text-sanctuary-text"
+            )}
+          >
+            <MessageCircle className="h-4 w-4" />
+            Chat
+          </button>
         </div>
 
         {/* New entry button */}
@@ -104,7 +135,9 @@ export function AppShell() {
         )}
 
         {/* Content area */}
-        {isEditorOpen ? (
+        {activeView === "chat" ? (
+          <ChatView />
+        ) : isEditorOpen ? (
           <Editor />
         ) : (
           <div className="flex-1 flex items-center justify-center">

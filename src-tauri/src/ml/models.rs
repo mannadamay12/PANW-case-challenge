@@ -68,9 +68,10 @@ pub fn is_model_downloaded(models_dir: &Path, model: ModelInfo) -> bool {
     let base_files_exist = model_path.exists() && tokenizer_path.exists() && config_path.exists();
 
     // Also check extra files
-    let extra_files_exist = model.extra_files.iter().all(|file| {
-        model.local_path(models_dir).join(file).exists()
-    });
+    let extra_files_exist = model
+        .extra_files
+        .iter()
+        .all(|file| model.local_path(models_dir).join(file).exists());
 
     base_files_exist && extra_files_exist
 }

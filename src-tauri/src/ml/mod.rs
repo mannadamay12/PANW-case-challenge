@@ -33,8 +33,10 @@ impl MlState {
 
     /// Check if models are downloaded and ready.
     pub async fn models_ready(&self) -> ModelStatus {
-        let embedding_ready = models::is_model_downloaded(&self.models_dir, models::EMBEDDING_MODEL);
-        let sentiment_ready = models::is_model_downloaded(&self.models_dir, models::SENTIMENT_MODEL);
+        let embedding_ready =
+            models::is_model_downloaded(&self.models_dir, models::EMBEDDING_MODEL);
+        let sentiment_ready =
+            models::is_model_downloaded(&self.models_dir, models::SENTIMENT_MODEL);
 
         ModelStatus {
             embedding_downloaded: embedding_ready,

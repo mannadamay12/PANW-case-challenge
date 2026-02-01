@@ -29,8 +29,11 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
   useEffect(() => {
     if (step !== "downloading") return;
 
+    let mounted = true;
+
     // Simulate progress with diminishing increments
     const interval = setInterval(() => {
+      if (!mounted) return;
       setProgress((prev) => {
         if (prev >= 95) return prev;
         const remaining = 95 - prev;
@@ -39,7 +42,10 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
       });
     }, 500);
 
-    return () => clearInterval(interval);
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+    };
   }, [step]);
 
   const handleDownload = async () => {

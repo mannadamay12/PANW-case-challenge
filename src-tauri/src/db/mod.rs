@@ -36,6 +36,7 @@ pub fn init(db_path: &Path) -> Result<DbPool, AppError> {
 
     // Register sqlite-vec extension as auto_extension BEFORE opening connection.
     // This makes the vec0 virtual table module available for CREATE VIRTUAL TABLE statements.
+    #[allow(clippy::missing_transmute_annotations)]
     unsafe {
         rusqlite::ffi::sqlite3_auto_extension(Some(std::mem::transmute(
             sqlite_vec::sqlite3_vec_init as *const (),

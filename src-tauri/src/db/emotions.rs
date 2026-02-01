@@ -19,12 +19,7 @@ pub fn get(conn: &Connection, journal_id: &str) -> Result<Vec<(String, f32)>, Ap
 }
 
 /// Store a single emotion for a journal entry.
-pub fn store(
-    conn: &Connection,
-    journal_id: &str,
-    label: &str,
-    score: f32,
-) -> Result<(), AppError> {
+pub fn store(conn: &Connection, journal_id: &str, label: &str, score: f32) -> Result<(), AppError> {
     conn.execute(
         "INSERT INTO journal_emotions (journal_id, emotion_label, confidence_score) VALUES (?1, ?2, ?3)",
         params![journal_id, label, score as f64],
