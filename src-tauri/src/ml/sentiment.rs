@@ -4,11 +4,8 @@ use candle_core::{DType, Device, Module, Tensor};
 use candle_nn::VarBuilder;
 use candle_transformers::models::distilbert::{Config, DistilBertModel};
 use tokenizers::{
-    models::wordpiece::WordPiece,
-    normalizers::BertNormalizer,
-    pre_tokenizers::bert::BertPreTokenizer,
-    processors::bert::BertProcessing,
-    Tokenizer,
+    models::wordpiece::WordPiece, normalizers::BertNormalizer,
+    pre_tokenizers::bert::BertPreTokenizer, processors::bert::BertProcessing, Tokenizer,
 };
 
 use crate::error::AppError;
@@ -131,7 +128,12 @@ impl SentimentModel {
 
     /// Predict emotions for the given text.
     /// Returns top emotions above threshold, sorted by confidence.
-    pub fn predict(&self, text: &str, threshold: f32, max_labels: usize) -> Result<Vec<EmotionPrediction>, AppError> {
+    pub fn predict(
+        &self,
+        text: &str,
+        threshold: f32,
+        max_labels: usize,
+    ) -> Result<Vec<EmotionPrediction>, AppError> {
         // Tokenize the input
         let encoding = self
             .tokenizer
@@ -208,18 +210,23 @@ impl SentimentModel {
             })
             .collect();
 
-        // Sort by score descending
-        predictions.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap());
+        // Sort by score descending (NaN values sort to the end)
+        predictions.sort_by(|a, b| {
+            b.score
+                .partial_cmp(&a.score)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
 
         // Limit to max_labels
         predictions.truncate(max_labels);
 
         // If no emotions above threshold, return "neutral"
+        // "neutral" is at index 27 in EMOTION_LABELS (last element)
+        const NEUTRAL_IDX: usize = 27;
         if predictions.is_empty() {
-            let neutral_idx = EMOTION_LABELS.iter().position(|&l| l == "neutral").unwrap();
             predictions.push(EmotionPrediction {
-                label: "neutral".to_string(),
-                score: probs_vec[neutral_idx],
+                label: EMOTION_LABELS[NEUTRAL_IDX].to_string(),
+                score: probs_vec[NEUTRAL_IDX],
             });
         }
 
@@ -229,16 +236,11 @@ impl SentimentModel {
 
 /// Sigmoid activation function.
 fn sigmoid(x: &Tensor) -> Result<Tensor, AppError> {
-    let neg_x = x
-        .neg()
-        .map_err(|e| AppError::Ml(e.to_string()))?;
+    let neg_x = x.neg().map_err(|e| AppError::Ml(e.to_string()))?;
 
-    let exp_neg_x = neg_x
-        .exp()
-        .map_err(|e| AppError::Ml(e.to_string()))?;
+    let exp_neg_x = neg_x.exp().map_err(|e| AppError::Ml(e.to_string()))?;
 
-    let one = Tensor::ones_like(&exp_neg_x)
-        .map_err(|e| AppError::Ml(e.to_string()))?;
+    let one = Tensor::ones_like(&exp_neg_x).map_err(|e| AppError::Ml(e.to_string()))?;
 
     let denominator = one
         .add(&exp_neg_x)
@@ -277,6 +279,10 @@ mod tests {
         assert!(!predictions.is_empty());
 
         let labels: Vec<&str> = predictions.iter().map(|p| p.label.as_str()).collect();
-        assert!(labels.contains(&"joy") || labels.contains(&"excitement") || labels.contains(&"optimism"));
+        assert!(
+            labels.contains(&"joy")
+                || labels.contains(&"excitement")
+                || labels.contains(&"optimism")
+        );
     }
 }

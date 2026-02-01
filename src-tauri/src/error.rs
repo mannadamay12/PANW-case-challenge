@@ -19,6 +19,9 @@ pub enum AppError {
 
     #[error("Model not ready: {0}")]
     ModelNotReady(String),
+
+    #[error("LLM error: {0}")]
+    Llm(String),
 }
 
 impl serde::Serialize for AppError {

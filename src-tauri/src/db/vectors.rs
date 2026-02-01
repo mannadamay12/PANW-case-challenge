@@ -68,8 +68,7 @@ pub fn search_similar(
 
 /// Check if an embedding exists for a journal entry.
 pub fn has_embedding(conn: &Connection, journal_id: &str) -> Result<bool, AppError> {
-    let mut stmt =
-        conn.prepare("SELECT 1 FROM journal_embeddings WHERE journal_id = ? LIMIT 1")?;
+    let mut stmt = conn.prepare("SELECT 1 FROM journal_embeddings WHERE journal_id = ? LIMIT 1")?;
 
     let exists = stmt.exists([journal_id])?;
     Ok(exists)
@@ -77,10 +76,7 @@ pub fn has_embedding(conn: &Connection, journal_id: &str) -> Result<bool, AppErr
 
 /// Convert a float vector to a byte blob for storage.
 fn embedding_to_blob(embedding: &[f32]) -> Vec<u8> {
-    embedding
-        .iter()
-        .flat_map(|f| f.to_le_bytes())
-        .collect()
+    embedding.iter().flat_map(|f| f.to_le_bytes()).collect()
 }
 
 #[cfg(test)]
@@ -148,5 +144,4 @@ mod tests {
         // First result should be closest to entry-0
         assert_eq!(results[0].0, "entry-0");
     }
-
 }

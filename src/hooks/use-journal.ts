@@ -15,7 +15,8 @@ export const journalKeys = {
   list: (params: ListEntriesParams) => [...journalKeys.lists(), params] as const,
   details: () => [...journalKeys.all, "detail"] as const,
   detail: (id: string) => [...journalKeys.details(), id] as const,
-  search: (query: string) => [...journalKeys.all, "search", query] as const,
+  search: (query: string, includeArchived = false) =>
+    [...journalKeys.all, "search", query, { includeArchived }] as const,
 };
 
 // List entries with optional filters
@@ -49,7 +50,7 @@ export function useSearchEntries(query: string, includeArchived = false) {
   const debouncedQuery = useDebounce(query, 300);
 
   return useQuery({
-    queryKey: [...journalKeys.search(debouncedQuery), { includeArchived }],
+    queryKey: journalKeys.search(debouncedQuery, includeArchived),
     queryFn: async () => {
       if (!debouncedQuery.trim()) return [];
       return invoke<JournalEntry[]>("search_entries", {

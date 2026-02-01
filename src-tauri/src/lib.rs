@@ -1,15 +1,18 @@
 mod db;
 mod error;
+pub mod llm;
 pub mod ml;
 
 use db::journals::{CreateEntryResponse, DeleteResponse, Journal};
 use db::search::HybridSearchResult;
-use ml::sentiment::EmotionPrediction;
-use ml::{MlState, ModelStatus};
-use tauri::Manager;
 use db::DbPool;
 use error::AppError;
-use tauri::State;
+use futures::StreamExt;
+use llm::safety::SafetyResult;
+use llm::{ChatChunkEvent, ChatErrorEvent, LlmState, OllamaStatus};
+use ml::sentiment::EmotionPrediction;
+use ml::{MlState, ModelStatus};
+use tauri::{AppHandle, Emitter, Manager, State};
 
 // Re-export for external use
 pub use db::journals;
@@ -17,10 +20,7 @@ pub use error::AppError as Error;
 
 /// Create a new journal entry.
 #[tauri::command]
-fn create_entry(
-    pool: State<'_, DbPool>,
-    content: String,
-) -> Result<CreateEntryResponse, AppError> {
+fn create_entry(pool: State<'_, DbPool>, content: String) -> Result<CreateEntryResponse, AppError> {
     let conn = pool.get()?;
     journals::create(&conn, &content)
 }
@@ -46,11 +46,7 @@ fn list_entries(
 
 /// Update a journal entry's content.
 #[tauri::command]
-fn update_entry(
-    pool: State<'_, DbPool>,
-    id: String,
-    content: String,
-) -> Result<Journal, AppError> {
+fn update_entry(pool: State<'_, DbPool>, id: String, content: String) -> Result<Journal, AppError> {
     let conn = pool.get()?;
     journals::update(&conn, &id, &content)
 }
@@ -221,6 +217,113 @@ async fn generate_embedding_inner(pool: &DbPool, ml: &MlState, id: &str) -> Resu
     Ok(())
 }
 
+// LLM/Chat Commands
+
+/// Check if Ollama is running and the required model is available.
+#[tauri::command]
+async fn check_ollama_status(llm: State<'_, LlmState>) -> Result<OllamaStatus, AppError> {
+    Ok(llm.check_status().await)
+}
+
+/// Check a message for safety concerns before sending to the LLM.
+#[tauri::command]
+fn check_message_safety(llm: State<'_, LlmState>, text: String) -> SafetyResult {
+    llm.safety.check(&text)
+}
+
+/// Stream a chat response from the LLM with optional RAG context.
+/// Emits 'chat-chunk' events for each token and 'chat-done' or 'chat-error' on completion.
+#[tauri::command]
+async fn chat_stream(
+    app: AppHandle,
+    pool: State<'_, DbPool>,
+    ml: State<'_, MlState>,
+    llm: State<'_, LlmState>,
+    message: String,
+    context_limit: Option<usize>,
+) -> Result<(), AppError> {
+    let context_limit = context_limit.unwrap_or(5);
+
+    // Check safety first
+    let safety_result = llm.safety.check(&message);
+    if !safety_result.safe {
+        // Emit the intervention message as a "response"
+        if let Some(intervention) = &safety_result.intervention {
+            let _ = app.emit("chat-chunk", ChatChunkEvent {
+                chunk: intervention.clone(),
+                done: false,
+            });
+        }
+        let _ = app.emit("chat-done", ());
+        return Ok(());
+    }
+
+    // Get RAG context from journal entries
+    let context = llm::chat::get_rag_context(
+        pool.inner(),
+        ml.inner(),
+        &message,
+        context_limit,
+    )
+    .await
+    .ok();
+
+    // Build the prompt with context
+    let chat_service = llm::ChatService::new(llm.ollama.clone(), llm.safety.clone());
+    let messages = chat_service.build_prompt(&message, context.as_deref());
+
+    // Stream the response
+    match chat_service.chat_stream(messages).await {
+        Ok(stream) => {
+            let mut stream = Box::pin(stream);
+            let mut full_response = String::new();
+
+            while let Some(result) = stream.next().await {
+                match result {
+                    Ok(chunk) => {
+                        if let Some(content) = &chunk.message {
+                            full_response.push_str(content);
+                            let _ = app.emit("chat-chunk", ChatChunkEvent {
+                                chunk: content.clone(),
+                                done: false,
+                            });
+                        }
+
+                        if chunk.done {
+                            // Augment with safety resources if distress was detected
+                            let augmented = chat_service.augment_with_safety(&full_response, &safety_result);
+                            if augmented != full_response {
+                                let suffix = augmented.strip_prefix(&full_response).unwrap_or("");
+                                let _ = app.emit("chat-chunk", ChatChunkEvent {
+                                    chunk: suffix.to_string(),
+                                    done: false,
+                                });
+                            }
+                            let _ = app.emit("chat-done", ());
+                            break;
+                        }
+                    }
+                    Err(e) => {
+                        log::error!("Chat stream error: {}", e);
+                        let _ = app.emit("chat-error", ChatErrorEvent {
+                            message: e.to_string(),
+                        });
+                        break;
+                    }
+                }
+            }
+        }
+        Err(e) => {
+            log::error!("Failed to start chat stream: {}", e);
+            let _ = app.emit("chat-error", ChatErrorEvent {
+                message: e.to_string(),
+            });
+        }
+    }
+
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // Initialize logger
@@ -235,22 +338,27 @@ pub fn run() {
             let app_dir = app
                 .path()
                 .app_data_dir()
-                .expect("Failed to get app data directory");
+                .map_err(|e| format!("Failed to get app data directory: {}", e))?;
 
             std::fs::create_dir_all(&app_dir)?;
 
             // Initialize database
             let db_path = app_dir.join("mindscribe.db");
-            let pool = db::init(&db_path).expect("Failed to initialize database");
+            let pool =
+                db::init(&db_path).map_err(|e| format!("Failed to initialize database: {}", e))?;
 
             // Initialize ML state
             let models_dir = app_dir.join("models");
             std::fs::create_dir_all(&models_dir)?;
             let ml_state = MlState::new(models_dir);
 
+            // Initialize LLM state
+            let llm_state = LlmState::new();
+
             // Store in Tauri state
             app.manage(pool);
             app.manage(ml_state);
+            app.manage(llm_state);
 
             log::info!("MindScribe initialized successfully");
 
@@ -269,7 +377,13 @@ pub fn run() {
             get_entry_emotions,
             hybrid_search,
             generate_entry_embedding,
+            check_ollama_status,
+            check_message_safety,
+            chat_stream,
         ])
         .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .unwrap_or_else(|e| {
+            log::error!("Fatal error running Tauri application: {}", e);
+            std::process::exit(1);
+        });
 }

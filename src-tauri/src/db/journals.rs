@@ -104,7 +104,7 @@ pub fn list(
             })
         })?
         .filter_map(|r| {
-            r.map_err(|e| log::warn!("Failed to parse journal row: {}", e))
+            r.map_err(|e| log::error!("Failed to parse journal row: {}", e))
                 .ok()
         })
         .collect();
@@ -226,7 +226,7 @@ pub fn search(
             })
         })?
         .filter_map(|r| {
-            r.map_err(|e| log::warn!("Failed to parse journal row: {}", e))
+            r.map_err(|e| log::error!("Failed to parse journal row: {}", e))
                 .ok()
         })
         .collect();
@@ -235,11 +235,15 @@ pub fn search(
 }
 
 /// Parse a datetime string into a DateTime<Utc>.
+/// Logs an error if parsing fails (indicates data corruption) and falls back to Utc::now().
 fn parse_datetime(s: String) -> DateTime<Utc> {
     DateTime::parse_from_rfc3339(&s)
         .map(|dt| dt.with_timezone(&Utc))
         .unwrap_or_else(|e| {
-            log::warn!("Failed to parse datetime '{}': {}", s, e);
+            log::error!(
+                "Corrupt datetime in database: '{}' (parse error: {}). Using current time as fallback.",
+                s, e
+            );
             Utc::now()
         })
 }

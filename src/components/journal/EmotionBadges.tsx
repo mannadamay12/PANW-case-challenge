@@ -13,7 +13,11 @@ export function EmotionBadges({
   className,
   maxBadges = 3,
 }: EmotionBadgesProps) {
-  const { data: emotions, isLoading } = useEntryEmotions(entryId);
+  const { data: emotions, isLoading, error } = useEntryEmotions(entryId);
+
+  if (error) {
+    return null;
+  }
 
   if (isLoading) {
     return (
