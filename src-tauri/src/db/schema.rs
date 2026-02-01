@@ -183,7 +183,7 @@ fn seed_default_templates(conn: &Connection) -> Result<(), AppError> {
             "Fear Setting",
             "What fears are holding you back?",
             "I am afraid of",
-            "accessibility",
+            "person",
             "growth",
         ),
         (
@@ -191,6 +191,13 @@ fn seed_default_templates(conn: &Connection) -> Result<(), AppError> {
             "What would you do if nothing was holding you back?",
             "If nothing was holding me back, I would",
             "target",
+            "growth",
+        ),
+        (
+            "Dear Future Me",
+            "Write a letter to your future self",
+            "Write a letter to your future self",
+            "envelope",
             "growth",
         ),
         // Mindfulness
@@ -208,6 +215,20 @@ fn seed_default_templates(conn: &Connection) -> Result<(), AppError> {
             "check-circle",
             "mindfulness",
         ),
+        (
+            "Letting Go",
+            "What are you ready to release?",
+            "I'm choosing to release",
+            "palm",
+            "mindfulness",
+        ),
+        (
+            "Self-Compassion",
+            "Practice being kind to yourself",
+            "I want to be kinder to myself by",
+            "thumbs-up",
+            "mindfulness",
+        ),
         // Morning
         (
             "Morning Intention",
@@ -221,6 +242,13 @@ fn seed_default_templates(conn: &Connection) -> Result<(), AppError> {
             "What did I dream about last night?",
             "Last night, I dreamed",
             "moon",
+            "morning",
+        ),
+        (
+            "Make Time",
+            "What do you want to make time for?",
+            "Something I want to make time for is",
+            "clock",
             "morning",
         ),
         // Reflection

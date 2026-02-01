@@ -60,7 +60,7 @@ export function useCreateTemplate() {
       return invoke<CreateTemplateResponse>("create_template", {
         title: params.title,
         prompt: params.prompt,
-        template_text: params.template_text,
+        templateText: params.template_text,
         icon: params.icon,
         category: params.category,
       });
@@ -81,7 +81,7 @@ export function useUpdateTemplate() {
         id: params.id,
         title: params.title,
         prompt: params.prompt,
-        template_text: params.template_text,
+        templateText: params.template_text,
         icon: params.icon,
         category: params.category,
       });

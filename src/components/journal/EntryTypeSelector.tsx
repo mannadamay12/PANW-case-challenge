@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Sun, Moon, Heart, PenLine, ChevronDown } from "lucide-react";
+import { Sun, Moon, Heart, PenNib, CaretDown, type Icon } from "@phosphor-icons/react";
 import type { EntryType } from "../../types/journal";
 import { cn } from "../../lib/utils";
 
@@ -10,11 +10,11 @@ interface EntryTypeSelectorProps {
   compact?: boolean;
 }
 
-const entryTypes: { type: EntryType; label: string; icon: typeof Sun }[] = [
+const entryTypes: { type: EntryType; label: string; icon: Icon }[] = [
   { type: "morning", label: "Morning", icon: Sun },
   { type: "evening", label: "Evening", icon: Moon },
   { type: "gratitude", label: "Gratitude", icon: Heart },
-  { type: "reflection", label: "Reflection", icon: PenLine },
+  { type: "reflection", label: "Reflection", icon: PenNib },
 ];
 
 export function EntryTypeSelector({
@@ -53,7 +53,7 @@ export function EntryTypeSelector({
       >
         <Icon className={compact ? "h-3.5 w-3.5" : "h-4 w-4"} />
         <span>{current.label}</span>
-        <ChevronDown
+        <CaretDown
           className={cn(
             "transition-transform",
             compact ? "h-3 w-3" : "h-4 w-4",
@@ -63,7 +63,7 @@ export function EntryTypeSelector({
       </button>
 
       {isOpen && (
-        <div className="absolute top-full left-0 mt-1 z-20 w-36 rounded-lg border border-sanctuary-border bg-sanctuary-card py-1 shadow-lg">
+        <div className="absolute top-full left-0 mt-1 z-20 w-36 rounded-lg border border-sanctuary-border bg-sanctuary-card py-1 shadow-lg animate-scale-in origin-top-left">
           {entryTypes.map(({ type, label, icon: TypeIcon }) => (
             <button
               key={type}

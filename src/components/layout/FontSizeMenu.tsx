@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Check, ChevronDown } from "lucide-react";
+import { Check, CaretDown } from "@phosphor-icons/react";
 import { useUIStore, type EditorFontSize } from "../../stores/ui-store";
 import { cn } from "../../lib/utils";
 
@@ -37,13 +37,13 @@ export function FontSizeMenu() {
         )}
       >
         <span className="text-xs">AA</span>
-        <ChevronDown
+        <CaretDown
           className={cn("h-3 w-3 transition-transform", isOpen && "rotate-180")}
         />
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 top-full mt-1 z-50 w-32 rounded-lg border border-sanctuary-border bg-sanctuary-card py-1 shadow-lg animate-scale-in origin-top-right">
+        <div className="absolute right-0 top-full mt-1 z-40 w-32 rounded-lg border border-sanctuary-border bg-sanctuary-card py-1 shadow-lg animate-scale-in origin-top-right">
           {fontSizes.map(({ size, label }) => (
             <button
               key={size}

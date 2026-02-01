@@ -17,12 +17,21 @@ use llm::safety::SafetyResult;
 use llm::{ChatChunkEvent, ChatErrorEvent, LlmState, OllamaStatus};
 use ml::sentiment::EmotionPrediction;
 use ml::{MlState, ModelStatus};
+use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, State};
 
 // Re-export for external use
 pub use db::journals;
 pub use db::templates;
 pub use error::AppError as Error;
+
+/// Response from generate_summary command.
+#[derive(Debug, Serialize)]
+pub struct SummaryResponse {
+    pub summary: String,
+    pub period: String,
+    pub entry_count: usize,
+}
 
 /// Create a new journal entry.
 #[tauri::command]
@@ -55,7 +64,7 @@ fn list_entries(
     journals::list(&conn, limit, offset, archived)
 }
 
-/// Update a journal entry's content, title, or entry type.
+/// Update a journal entry's content, title, entry type, or creation date.
 #[tauri::command]
 fn update_entry(
     pool: State<'_, DbPool>,
@@ -63,7 +72,18 @@ fn update_entry(
     content: Option<String>,
     title: Option<String>,
     entry_type: Option<String>,
+    created_at: Option<String>,
 ) -> Result<Journal, AppError> {
+    log::info!(
+        "update_entry called: id={}, content={:?}, title={:?}, entry_type={:?}, created_at={:?}",
+        id,
+        content
+            .as_ref()
+            .map(|c| format!("{}...", &c[..c.len().min(20)])),
+        title,
+        entry_type,
+        created_at
+    );
     let conn = pool.get()?;
     journals::update(
         &conn,
@@ -71,6 +91,7 @@ fn update_entry(
         content.as_deref(),
         title.as_deref(),
         entry_type.as_deref(),
+        created_at.as_deref(),
     )
 }
 
@@ -110,6 +131,13 @@ fn delete_entry(
 fn archive_entry(pool: State<'_, DbPool>, id: String) -> Result<Journal, AppError> {
     let conn = pool.get()?;
     journals::archive(&conn, &id)
+}
+
+/// Unarchive a journal entry.
+#[tauri::command]
+fn unarchive_entry(pool: State<'_, DbPool>, id: String) -> Result<Journal, AppError> {
+    let conn = pool.get()?;
+    journals::unarchive(&conn, &id)
 }
 
 /// Search journal entries using full-text search.
@@ -874,6 +902,122 @@ async fn chat_stream(
     Ok(())
 }
 
+/// Generate a reflective summary of journal entries for a given period.
+/// Period can be "weekly" (last 7 days) or "monthly" (last 30 days).
+#[tauri::command]
+async fn generate_summary(
+    pool: State<'_, DbPool>,
+    llm: State<'_, LlmState>,
+    period: String,
+) -> Result<SummaryResponse, AppError> {
+    use chrono::{Duration, Local};
+
+    let today = Local::now().date_naive();
+    let (start_date, period_label) = match period.as_str() {
+        "monthly" => {
+            let start = today - Duration::days(30);
+            (start.format("%Y-%m-%d").to_string(), "month")
+        }
+        _ => {
+            let start = today - Duration::days(7);
+            (start.format("%Y-%m-%d").to_string(), "week")
+        }
+    };
+    let end_date = today.format("%Y-%m-%d").to_string();
+
+    // Fetch entries in range
+    let entries = {
+        let conn = pool.get()?;
+        journals::get_entries_in_range(&conn, &start_date, &end_date)?
+    };
+
+    if entries.is_empty() {
+        return Ok(SummaryResponse {
+            summary: format!(
+                "You haven't written any journal entries in the past {}. Start writing to see your reflections here!",
+                period_label
+            ),
+            period: period.clone(),
+            entry_count: 0,
+        });
+    }
+
+    // Fetch emotion trends for the period
+    let emotions = {
+        let conn = pool.get()?;
+        db::emotions::get_daily_emotions(&conn, &start_date, &end_date)?
+    };
+
+    // Aggregate emotions to find top emotions
+    let mut emotion_counts: std::collections::HashMap<String, u32> =
+        std::collections::HashMap::new();
+    for (_, dominant_emotion, _) in &emotions {
+        if let Some(emotion) = dominant_emotion {
+            *emotion_counts.entry(emotion.clone()).or_insert(0) += 1;
+        }
+    }
+    let mut emotion_list: Vec<_> = emotion_counts.into_iter().collect();
+    emotion_list.sort_by(|a, b| b.1.cmp(&a.1));
+    let top_emotions: Vec<String> = emotion_list.into_iter().take(3).map(|(e, _)| e).collect();
+
+    // Format entries for the prompt (limit excerpts to avoid token overflow)
+    let formatted_entries: String = entries
+        .iter()
+        .take(10)
+        .map(|e| {
+            let date = e.created_at.format("%A, %B %d").to_string();
+            let excerpt = if e.content.len() > 300 {
+                format!("{}...", &e.content[..300])
+            } else {
+                e.content.clone()
+            };
+            format!(
+                "- {} ({}): {}",
+                e.title.as_deref().unwrap_or("Untitled"),
+                date,
+                excerpt
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n\n");
+
+    let emotion_summary = if top_emotions.is_empty() {
+        "No emotion data available for this period.".to_string()
+    } else {
+        format!("Most frequent emotions: {}", top_emotions.join(", "))
+    };
+
+    // Build the summarization prompt
+    let prompt = format!(
+        r#"You are MindScribe, a thoughtful journaling companion. The user has asked for a reflection on their past {}.
+
+Here are excerpts from their journal entries:
+<entries>
+{}
+</entries>
+
+Their emotional patterns this {}:
+{}
+
+Write a warm, 2-3 paragraph reflection that:
+1. Highlights recurring themes or topics from their writing
+2. Notes emotional patterns without judgment
+3. Offers one gentle observation or question for self-reflection
+
+Do not give advice unless asked. Be supportive and curious. Keep your response focused and meaningful."#,
+        period_label, formatted_entries, period_label, emotion_summary
+    );
+
+    // Generate the summary
+    let summary = llm.ollama.generate_summary(&prompt).await?;
+
+    Ok(SummaryResponse {
+        summary,
+        period,
+        entry_count: entries.len(),
+    })
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // Initialize logger
@@ -925,6 +1069,7 @@ pub fn run() {
             update_entry,
             delete_entry,
             archive_entry,
+            unarchive_entry,
             search_entries,
             get_journal_stats,
             get_streak_info,
@@ -953,6 +1098,7 @@ pub fn run() {
             generate_title,
             generate_missing_titles,
             chat_stream,
+            generate_summary,
         ])
         .run(tauri::generate_context!())
         .unwrap_or_else(|e| {

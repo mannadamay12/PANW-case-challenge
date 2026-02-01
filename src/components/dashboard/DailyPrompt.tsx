@@ -1,4 +1,4 @@
-import { Lightbulb, ChevronRight } from "lucide-react";
+import { Lightbulb, CaretRight } from "@phosphor-icons/react";
 import { Button } from "../ui/Button";
 
 interface DailyPromptProps {
@@ -9,7 +9,7 @@ interface DailyPromptProps {
 const PROMPTS = [
   "What small moment brought you joy today?",
   "What are you grateful for right now?",
-  "What's been on your mind lately?",
+  "Reflect on a small win from yesterday.",
   "What would make tomorrow a great day?",
   "What's something you learned recently?",
   "How are you feeling in this moment?",
@@ -72,7 +72,7 @@ export function DailyPrompt({ onStartWriting }: DailyPromptProps) {
         className="text-sanctuary-accent hover:text-sanctuary-accent hover:bg-sanctuary-accent/10"
       >
         Start Writing
-        <ChevronRight className="h-4 w-4 ml-1" />
+        <CaretRight className="h-4 w-4 ml-1" />
       </Button>
     </div>
   );

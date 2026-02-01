@@ -62,8 +62,8 @@ export function AppShell() {
       {/* Global Titlebar */}
       <Titlebar
         entryId={editorContext?.entryId ?? null}
-        entryType={editorContext?.entryType ?? "reflection"}
-        onChangeEntryType={editorContext?.onChangeEntryType ?? (() => {})}
+        entryDate={editorContext?.entryDate}
+        onChangeDate={editorContext?.onChangeDate}
         isArchived={editorContext?.isArchived}
         onArchive={editorContext?.onArchive}
         onDelete={editorContext?.onDelete}

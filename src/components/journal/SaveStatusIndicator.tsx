@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Loader2, CheckCircle } from "lucide-react";
+import { CircleNotch, CheckCircle } from "@phosphor-icons/react";
 import { cn } from "../../lib/utils";
 import type { SaveStatus } from "../../hooks/use-debounced-save";
 
@@ -38,7 +38,7 @@ export function SaveStatusIndicator({
     >
       {status === "saving" && (
         <>
-          <Loader2 className="h-3 w-3 animate-spin" />
+          <CircleNotch className="h-3 w-3 animate-spin" />
           <span>Saving...</span>
         </>
       )}
