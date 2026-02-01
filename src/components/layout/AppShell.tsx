@@ -1,23 +1,18 @@
 import { useEffect, useRef } from "react";
-import { PanelLeftClose, PanelLeft, Plus } from "lucide-react";
 import { useUIStore } from "../../stores/ui-store";
 import { useDeleteEntry, useGenerateMissingTitles } from "../../hooks/use-journal";
 import { useOllamaStatus } from "../../hooks/use-chat";
-import { Button } from "../ui/Button";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
-import { SearchBar } from "../journal/SearchBar";
 import { EntryList } from "../journal/EntryList";
 import { Editor } from "../journal/Editor";
 import { TemplatesView } from "../templates/TemplatesView";
 import { Dashboard } from "../dashboard";
 import { Titlebar } from "./Titlebar";
 import { cn } from "../../lib/utils";
-import logoImage from "../../assets/logo.png";
 
 export function AppShell() {
   const {
     isSidebarOpen,
-    toggleSidebar,
     isEditorOpen,
     openEditor,
     closeEditor,
@@ -72,64 +67,25 @@ export function AppShell() {
         isArchived={editorContext?.isArchived}
         onArchive={editorContext?.onArchive}
         onDelete={editorContext?.onDelete}
+        onNewEntry={handleNewEntry}
       />
 
       {/* Main content area */}
       <div className="flex-1 flex min-h-0">
-        {/* Sidebar */}
+        {/* Sidebar - just the entry list, no header */}
         <aside
           className={cn(
             "flex flex-col border-r border-sanctuary-border bg-sanctuary-bg transition-all duration-300",
             isSidebarOpen ? "w-80" : "w-0 overflow-hidden"
           )}
         >
-          {/* Sidebar header */}
-          <div className="h-12 flex items-center justify-between px-3 border-b border-sanctuary-border">
-            <div className="flex items-center gap-2">
-              <img
-                src={logoImage}
-                alt="MindScribe"
-                className="h-6 w-auto"
-                title="MindScribe"
-              />
-            </div>
-            <div className="flex items-center gap-1">
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={handleNewEntry}
-                title="New entry"
-              >
-                <Plus className="h-5 w-5" />
-              </Button>
-              <Button variant="ghost" size="icon" onClick={toggleSidebar}>
-                <PanelLeftClose className="h-5 w-5" />
-              </Button>
-            </div>
-          </div>
-
-          {/* Search */}
-          <div className="px-4 py-3">
-            <SearchBar />
-          </div>
-
-          {/* Entry list */}
-          <div className="flex-1 overflow-y-auto">
+          <div className="flex-1 overflow-y-auto pt-2">
             <EntryList />
           </div>
         </aside>
 
         {/* Main content */}
         <main className="flex-1 flex flex-col min-w-0">
-          {/* Collapsed sidebar toggle */}
-          {!isSidebarOpen && (
-            <div className="h-12 flex items-center px-2 border-b border-sanctuary-border">
-              <Button variant="ghost" size="icon" onClick={toggleSidebar}>
-                <PanelLeft className="h-5 w-5" />
-              </Button>
-            </div>
-          )}
-
           {/* Content area */}
           {activeView === "library" ? (
             <TemplatesView />

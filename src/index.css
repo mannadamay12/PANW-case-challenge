@@ -11,6 +11,10 @@
   --color-sanctuary-accent: #57534e;
   --color-sanctuary-accent-hover: #44403c;
 
+  /* Interactive states */
+  --color-sanctuary-hover: #f5f5f4;
+  --color-sanctuary-selected: #e7e5e4;
+
   /* Dark mode colors (used via CSS variables below) */
   --color-sanctuary-bg-dark: #1c1917;
   --color-sanctuary-card-dark: #292524;
@@ -19,6 +23,10 @@
   --color-sanctuary-muted-dark: #a8a29e;
   --color-sanctuary-accent-dark: #a8a29e;
   --color-sanctuary-accent-hover-dark: #d6d3d1;
+
+  /* Dark mode interactive states */
+  --color-sanctuary-hover-dark: #44403c;
+  --color-sanctuary-selected-dark: #57534e;
 
   /* Typography */
   --font-serif: Georgia, Cambria, "Times New Roman", Times, serif;
@@ -34,5 +42,71 @@
     --color-sanctuary-muted: var(--color-sanctuary-muted-dark);
     --color-sanctuary-accent: var(--color-sanctuary-accent-dark);
     --color-sanctuary-accent-hover: var(--color-sanctuary-accent-hover-dark);
+    --color-sanctuary-hover: var(--color-sanctuary-hover-dark);
+    --color-sanctuary-selected: var(--color-sanctuary-selected-dark);
   }
+}
+
+/* Animation keyframes */
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slide-in-right {
+  from { opacity: 0; transform: translateX(100%); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes slide-out-right {
+  from { opacity: 1; transform: translateX(0); }
+  to { opacity: 0; transform: translateX(100%); }
+}
+
+@keyframes scale-in {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes subtle-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.15); }
+}
+
+/* Animation utility classes */
+.animate-slide-up {
+  animation: slide-up 200ms ease-out both;
+}
+
+.animate-slide-in-right {
+  animation: slide-in-right 250ms ease-out both;
+}
+
+.animate-slide-out-right {
+  animation: slide-out-right 200ms ease-in both;
+}
+
+.animate-scale-in {
+  animation: scale-in 150ms ease-out both;
+}
+
+.animate-subtle-pulse {
+  animation: subtle-pulse 300ms ease-out;
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Titlebar drag region classes for macOS overlay titlebar */
+.titlebar-drag-region {
+  -webkit-app-region: drag;
+}
+
+.titlebar-no-drag {
+  -webkit-app-region: no-drag;
 }

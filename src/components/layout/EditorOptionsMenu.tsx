@@ -11,7 +11,6 @@ import {
   Archive,
   Trash2,
   Eye,
-  MessageCircle,
   ChevronRight,
 } from "lucide-react";
 import { useUIStore } from "../../stores/ui-store";
@@ -49,8 +48,6 @@ export function EditorOptionsMenu({
   const {
     showWordCount,
     toggleShowWordCount,
-    isAIPanelOpen,
-    toggleAIPanel,
     showArchived,
     toggleShowArchived,
   } = useUIStore();
@@ -80,7 +77,7 @@ export function EditorOptionsMenu({
         onClick={() => setIsOpen(!isOpen)}
         className={cn(
           "flex items-center gap-1 p-1.5 rounded-md",
-          "text-sanctuary-muted hover:text-sanctuary-text hover:bg-stone-100",
+          "text-sanctuary-muted hover:text-sanctuary-text hover:bg-sanctuary-hover",
           "transition-colors"
         )}
         title="Options"
@@ -99,7 +96,7 @@ export function EditorOptionsMenu({
             <button
               className={cn(
                 "flex w-full items-center justify-between px-3 py-2 text-sm",
-                "text-sanctuary-muted hover:bg-stone-50 hover:text-sanctuary-text"
+                "text-sanctuary-muted hover:bg-sanctuary-hover hover:text-sanctuary-text"
               )}
             >
               <div className="flex items-center gap-2">
@@ -121,8 +118,8 @@ export function EditorOptionsMenu({
                     className={cn(
                       "flex w-full items-center justify-between px-3 py-2 text-sm transition-colors",
                       type === entryType
-                        ? "bg-stone-100 text-sanctuary-text"
-                        : "text-sanctuary-muted hover:bg-stone-50 hover:text-sanctuary-text"
+                        ? "bg-sanctuary-selected text-sanctuary-text"
+                        : "text-sanctuary-muted hover:bg-sanctuary-hover hover:text-sanctuary-text"
                     )}
                   >
                     <div className="flex items-center gap-2">
@@ -143,26 +140,11 @@ export function EditorOptionsMenu({
             onClick={() => toggleShowWordCount()}
             className={cn(
               "flex w-full items-center justify-between px-3 py-2 text-sm",
-              "text-sanctuary-muted hover:bg-stone-50 hover:text-sanctuary-text"
+              "text-sanctuary-muted hover:bg-sanctuary-hover hover:text-sanctuary-text"
             )}
           >
             <span>Show Word Count</span>
             {showWordCount && <Check className="h-4 w-4" />}
-          </button>
-
-          {/* AI Companion toggle */}
-          <button
-            onClick={() => toggleAIPanel()}
-            className={cn(
-              "flex w-full items-center justify-between px-3 py-2 text-sm",
-              "text-sanctuary-muted hover:bg-stone-50 hover:text-sanctuary-text"
-            )}
-          >
-            <div className="flex items-center gap-2">
-              <MessageCircle className="h-4 w-4" />
-              <span>AI Companion</span>
-            </div>
-            {isAIPanelOpen && <Check className="h-4 w-4" />}
           </button>
 
           <div className="my-1 border-t border-sanctuary-border" />
@@ -175,7 +157,7 @@ export function EditorOptionsMenu({
             }}
             className={cn(
               "flex w-full items-center gap-2 px-3 py-2 text-sm",
-              "text-sanctuary-muted hover:bg-stone-50 hover:text-sanctuary-text"
+              "text-sanctuary-muted hover:bg-sanctuary-hover hover:text-sanctuary-text"
             )}
           >
             <BookTemplate className="h-4 w-4" />
@@ -191,7 +173,7 @@ export function EditorOptionsMenu({
               }}
               className={cn(
                 "flex w-full items-center gap-2 px-3 py-2 text-sm",
-                "text-sanctuary-muted hover:bg-stone-50 hover:text-sanctuary-text"
+                "text-sanctuary-muted hover:bg-sanctuary-hover hover:text-sanctuary-text"
               )}
             >
               <Save className="h-4 w-4" />
@@ -204,7 +186,7 @@ export function EditorOptionsMenu({
             onClick={() => toggleShowArchived()}
             className={cn(
               "flex w-full items-center justify-between px-3 py-2 text-sm",
-              "text-sanctuary-muted hover:bg-stone-50 hover:text-sanctuary-text"
+              "text-sanctuary-muted hover:bg-sanctuary-hover hover:text-sanctuary-text"
             )}
           >
             <div className="flex items-center gap-2">
@@ -227,7 +209,7 @@ export function EditorOptionsMenu({
                   }}
                   className={cn(
                     "flex w-full items-center gap-2 px-3 py-2 text-sm",
-                    "text-sanctuary-muted hover:bg-stone-50 hover:text-sanctuary-text"
+                    "text-sanctuary-muted hover:bg-sanctuary-hover hover:text-sanctuary-text"
                   )}
                 >
                   <Archive className="h-4 w-4" />
@@ -244,7 +226,7 @@ export function EditorOptionsMenu({
                   }}
                   className={cn(
                     "flex w-full items-center gap-2 px-3 py-2 text-sm",
-                    "text-red-600 hover:bg-red-50"
+                    "text-red-600 hover:bg-red-50 dark:hover:bg-red-950"
                   )}
                 >
                   <Trash2 className="h-4 w-4" />

@@ -19,7 +19,7 @@ export function EmptyState({
         className
       )}
     >
-      <div className="rounded-full bg-stone-100 p-4 mb-4">
+      <div className="rounded-full bg-sanctuary-bg p-4 mb-4">
         <BookOpen className="h-8 w-8 text-sanctuary-muted" />
       </div>
       <h3 className="text-lg font-medium text-sanctuary-text mb-1">{title}</h3>

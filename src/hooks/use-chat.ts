@@ -7,6 +7,7 @@ import type {
   SafetyResult,
   ChatChunkEvent,
   ChatErrorEvent,
+  ChatDoneEvent,
 } from "../types/chat";
 import { useChatStore } from "../stores/chat-store";
 
@@ -61,7 +62,9 @@ export function useEntryChatStream(journalId: string | null) {
   const {
     addMessage,
     appendToMessage,
+    removeMessage,
     setMessageStreaming,
+    setMessageSources,
     setIsStreaming,
     setStreamingEntryId,
     setCurrentStreamingMessageId,
@@ -94,14 +97,18 @@ export function useEntryChatStream(journalId: string | null) {
       if (isMounted) unlisteners.push(unlistenChunk);
       else unlistenChunk();
 
-      // Listen for chat completion
-      const unlistenDone = await listen("chat-done", () => {
+      // Listen for chat completion with sources
+      const unlistenDone = await listen<ChatDoneEvent>("chat-done", (event) => {
         if (!isMounted) return;
         const state = useChatStore.getState();
         const currentId = state.currentStreamingMessageId;
         const entryId = state.streamingEntryId;
         if (currentId) {
           setMessageStreaming(entryId, currentId, false);
+          // Set sources from the event payload
+          if (event.payload?.sources && event.payload.sources.length > 0) {
+            setMessageSources(entryId, currentId, event.payload.sources);
+          }
         }
         setIsStreaming(false);
         setStreamingEntryId(null);
@@ -120,12 +127,8 @@ export function useEntryChatStream(journalId: string | null) {
           const currentId = state.currentStreamingMessageId;
           const entryId = state.streamingEntryId;
           if (currentId) {
-            appendToMessage(
-              entryId,
-              currentId,
-              `\n\n*Error: ${event.payload.message}*`
-            );
-            setMessageStreaming(entryId, currentId, false);
+            // Remove the incomplete assistant message instead of appending error
+            removeMessage(entryId, currentId);
           }
           setIsStreaming(false);
           setStreamingEntryId(null);
@@ -144,7 +147,9 @@ export function useEntryChatStream(journalId: string | null) {
     };
   }, [
     appendToMessage,
+    removeMessage,
     setMessageStreaming,
+    setMessageSources,
     setIsStreaming,
     setStreamingEntryId,
     setCurrentStreamingMessageId,
@@ -205,9 +210,8 @@ export function useEntryChatStream(journalId: string | null) {
         });
       } catch (error) {
         console.error("Failed to start chat stream:", error);
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        appendToMessage(journalId, assistantId, `*Error: ${errorMessage}*`);
-        setMessageStreaming(journalId, assistantId, false);
+        // Remove incomplete message instead of appending error text
+        removeMessage(journalId, assistantId);
         setIsStreaming(false);
         setStreamingEntryId(null);
         setCurrentStreamingMessageId(null);

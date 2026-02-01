@@ -1,6 +1,5 @@
 import { useMemo, useState, useCallback } from "react";
 import {
-  Plus,
   FileText,
   Calendar,
   TrendingUp,
@@ -11,7 +10,6 @@ import { useEntries, useJournalStats } from "../../hooks/use-journal";
 import { useStreakInfo, useEmotionTrends, useOnThisDay } from "../../hooks/use-dashboard";
 import { useTemplates } from "../../hooks/use-templates";
 import { useUIStore } from "../../stores/ui-store";
-import { Button } from "../ui/Button";
 import { Skeleton } from "../ui/Skeleton";
 import { TemplateIcon } from "../templates/IconPicker";
 import { StreakCard } from "./StreakCard";
@@ -83,20 +81,14 @@ export function Dashboard() {
   return (
     <div className="flex-1 overflow-y-auto">
       <div className="max-w-3xl mx-auto px-6 py-8 space-y-8">
-        {/* Quick Actions */}
-        <section className="text-center space-y-4">
-          <div>
-            <h1 className="text-2xl font-semibold text-sanctuary-text">
-              {greeting}
-            </h1>
-            <p className="text-sanctuary-muted mt-1">
-              What's on your mind today?
-            </p>
-          </div>
-          <Button onClick={() => openEditor()} size="lg">
-            <Plus className="h-5 w-5 mr-2" />
-            New Entry
-          </Button>
+        {/* Greeting */}
+        <section className="text-center">
+          <h1 className="text-2xl font-semibold text-sanctuary-text">
+            {greeting}
+          </h1>
+          <p className="text-sanctuary-muted mt-1">
+            What's on your mind today?
+          </p>
         </section>
 
         {/* Streak and Week Emotions - Side by Side on larger screens */}
@@ -260,7 +252,7 @@ function RecentEntryCard({ entry, onClick }: RecentEntryCardProps) {
   return (
     <button
       onClick={onClick}
-      className="w-full text-left bg-sanctuary-card border border-sanctuary-border rounded-lg p-3 hover:bg-stone-50 transition-colors"
+      className="w-full text-left bg-sanctuary-card border border-sanctuary-border rounded-lg p-3 hover:bg-sanctuary-hover transition-colors"
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">

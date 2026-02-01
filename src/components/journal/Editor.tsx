@@ -13,7 +13,6 @@ import { useUIStore } from "../../stores/ui-store";
 import {
   useDebouncedSave,
   SaveData,
-  SaveStatus,
 } from "../../hooks/use-debounced-save";
 import { useSaveOnClose } from "../../hooks/use-save-on-close";
 import { useEmbeddingOnSave } from "../../hooks/use-ml";
@@ -65,7 +64,6 @@ export function Editor() {
   const [title, setTitle] = useState("");
   const [entryType, setEntryType] = useState<EntryType>("reflection");
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [_saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
   const [isDragging, setIsDragging] = useState(false);
   const [imageError, setImageError] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -143,7 +141,6 @@ export function Editor() {
     delay: 1000,
     onSaveNew: handleSaveNew,
     onSaveExisting: handleSaveExisting,
-    onStatusChange: setSaveStatus,
   });
 
   useSaveOnClose({
@@ -385,25 +382,33 @@ export function Editor() {
     }
   }, [selectedEntryId, setDeleteConfirmId]);
 
+  // Use refs for callbacks to avoid infinite loops in the context effect
+  const handleEntryTypeChangeRef = useRef(handleEntryTypeChange);
+  handleEntryTypeChangeRef.current = handleEntryTypeChange;
+  const handleArchiveRef = useRef(handleArchive);
+  handleArchiveRef.current = handleArchive;
+  const handleDeleteRef = useRef(handleDelete);
+  handleDeleteRef.current = handleDelete;
+
   // Update editor context for titlebar
   useEffect(() => {
     setEditorContext({
       entryId: selectedEntryId,
       entryType,
       isArchived: entry?.is_archived ?? false,
-      onChangeEntryType: handleEntryTypeChange,
-      onArchive: handleArchive,
-      onDelete: handleDelete,
+      onChangeEntryType: (type: EntryType) => handleEntryTypeChangeRef.current(type),
+      onArchive: () => handleArchiveRef.current(),
+      onDelete: () => handleDeleteRef.current(),
     });
 
     return () => {
       setEditorContext(null);
     };
-  }, [selectedEntryId, entryType, entry?.is_archived, handleEntryTypeChange, handleArchive, handleDelete, setEditorContext]);
+  }, [selectedEntryId, entryType, entry?.is_archived, setEditorContext]);
 
   if (isLoading && selectedEntryId) {
     return (
-      <div className="h-full flex bg-white">
+      <div className="h-full flex bg-sanctuary-card">
         <div className="flex-1 flex flex-col min-w-0">
           <div className="flex-1 overflow-y-auto">
             <div className="max-w-[65ch] mx-auto px-4 py-8">
@@ -424,14 +429,14 @@ export function Editor() {
   }
 
   return (
-    <div className="h-full flex bg-white">
+    <div className="h-full flex bg-sanctuary-card">
       {/* Main editor area */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Editor area */}
         <div
           className={cn(
             "flex-1 overflow-y-auto relative",
-            isDragging && "bg-stone-50"
+            isDragging && "bg-sanctuary-hover"
           )}
           onDragEnter={handleDragEnter}
           onDragLeave={handleDragLeave}
@@ -440,8 +445,8 @@ export function Editor() {
         >
           {/* Drag overlay */}
           {isDragging && (
-            <div className="absolute inset-0 flex items-center justify-center bg-stone-50/80 border-2 border-dashed border-stone-300 rounded-lg m-4 z-10">
-              <div className="flex flex-col items-center gap-2 text-stone-600">
+            <div className="absolute inset-0 flex items-center justify-center bg-sanctuary-hover/80 border-2 border-dashed border-sanctuary-border rounded-lg m-4 z-10">
+              <div className="flex flex-col items-center gap-2 text-sanctuary-muted">
                 <Image className="h-8 w-8" />
                 <span className="text-sm font-medium">Drop image here</span>
               </div>

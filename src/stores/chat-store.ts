@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { invoke } from "@tauri-apps/api/core";
-import type { ChatMessage, DbChatMessage, SafetyResult } from "../types/chat";
+import type { ChatMessage, DbChatMessage, SafetyResult, SourceReference } from "../types/chat";
 import { dbMessageToUi } from "../types/chat";
 
 interface ChatState {
@@ -18,7 +18,9 @@ interface ChatState {
   addMessage: (journalId: string | null, message: Omit<ChatMessage, "id" | "timestamp" | "journalId">) => string;
   updateMessage: (journalId: string | null, id: string, content: string) => void;
   appendToMessage: (journalId: string | null, id: string, chunk: string) => void;
+  removeMessage: (journalId: string | null, id: string) => void;
   setMessageStreaming: (journalId: string | null, id: string, isStreaming: boolean) => void;
+  setMessageSources: (journalId: string | null, id: string, sources: SourceReference[]) => void;
   clearMessages: (journalId: string) => void;
   getMessages: (journalId: string | null) => ChatMessage[];
   getLoadError: (journalId: string | null) => Error | undefined;
@@ -145,6 +147,16 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }));
   },
 
+  removeMessage: (journalId, id) => {
+    const key = getEntryKey(journalId);
+    set((state) => ({
+      messagesByEntry: {
+        ...state.messagesByEntry,
+        [key]: (state.messagesByEntry[key] || []).filter((m) => m.id !== id),
+      },
+    }));
+  },
+
   setMessageStreaming: (journalId, id, isStreaming) => {
     const key = getEntryKey(journalId);
     set((state) => ({
@@ -152,6 +164,18 @@ export const useChatStore = create<ChatState>((set, get) => ({
         ...state.messagesByEntry,
         [key]: (state.messagesByEntry[key] || []).map((m) =>
           m.id === id ? { ...m, isStreaming } : m
+        ),
+      },
+    }));
+  },
+
+  setMessageSources: (journalId, id, sources) => {
+    const key = getEntryKey(journalId);
+    set((state) => ({
+      messagesByEntry: {
+        ...state.messagesByEntry,
+        [key]: (state.messagesByEntry[key] || []).map((m) =>
+          m.id === id ? { ...m, sources } : m
         ),
       },
     }));

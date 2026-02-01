@@ -37,7 +37,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
       }
 
       return (
-        <div className="h-full flex flex-col items-center justify-center bg-white p-8">
+        <div className="h-full flex flex-col items-center justify-center bg-sanctuary-card p-8">
           <div className="flex flex-col items-center gap-4 max-w-md text-center">
             <AlertTriangle className="h-12 w-12 text-amber-500" />
             <h2 className="text-xl font-semibold text-sanctuary-text">
@@ -47,7 +47,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
               An unexpected error occurred. Your data has been saved.
             </p>
             {this.state.error && (
-              <pre className="mt-2 p-3 bg-stone-100 rounded-lg text-xs text-stone-600 overflow-auto max-w-full">
+              <pre className="mt-2 p-3 bg-sanctuary-bg rounded-lg text-xs text-sanctuary-muted overflow-auto max-w-full">
                 {this.state.error.message}
               </pre>
             )}

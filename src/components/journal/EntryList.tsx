@@ -58,11 +58,12 @@ export function EntryList() {
             {dateGroup}
           </h3>
           <div>
-            {groupEntries.map((entry) => (
+            {groupEntries.map((entry, index) => (
               <EntryCard
                 key={entry.id}
                 entry={entry}
                 isSelected={entry.id === selectedEntryId}
+                animationDelay={Math.min(index * 50, 400)}
               />
             ))}
           </div>

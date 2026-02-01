@@ -32,7 +32,7 @@ export function FontSizeMenu() {
         onClick={() => setIsOpen(!isOpen)}
         className={cn(
           "flex items-center gap-1 px-2 py-1 rounded-md text-sm font-medium",
-          "text-sanctuary-muted hover:text-sanctuary-text hover:bg-stone-100",
+          "text-sanctuary-muted hover:text-sanctuary-text hover:bg-sanctuary-hover",
           "transition-colors"
         )}
       >
@@ -43,7 +43,7 @@ export function FontSizeMenu() {
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 top-full mt-1 z-50 w-32 rounded-lg border border-sanctuary-border bg-sanctuary-card py-1 shadow-lg">
+        <div className="absolute right-0 top-full mt-1 z-50 w-32 rounded-lg border border-sanctuary-border bg-sanctuary-card py-1 shadow-lg animate-scale-in origin-top-right">
           {fontSizes.map(({ size, label }) => (
             <button
               key={size}
@@ -54,8 +54,8 @@ export function FontSizeMenu() {
               className={cn(
                 "flex w-full items-center justify-between px-3 py-2 text-sm transition-colors",
                 size === editorFontSize
-                  ? "bg-stone-100 text-sanctuary-text"
-                  : "text-sanctuary-muted hover:bg-stone-50 hover:text-sanctuary-text"
+                  ? "bg-sanctuary-selected text-sanctuary-text"
+                  : "text-sanctuary-muted hover:bg-sanctuary-hover hover:text-sanctuary-text"
               )}
             >
               <span>{label}</span>
