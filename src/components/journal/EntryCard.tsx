@@ -1,8 +1,9 @@
 import { Archive, MoreHorizontal, Trash2 } from "lucide-react";
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useCallback } from "react";
 import type { JournalEntry } from "../../types/journal";
 import { useArchiveEntry } from "../../hooks/use-journal";
 import { useUIStore } from "../../stores/ui-store";
+import { useClickOutside } from "../../hooks/use-click-outside";
 import { cn } from "../../lib/utils";
 import { EmotionBadges } from "./EmotionBadges";
 import { EntryTypeBadge } from "./EntryTypeSelector";
@@ -19,17 +20,8 @@ export function EntryCard({ entry, isSelected }: EntryCardProps) {
   const [showMenu, setShowMenu] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setShowMenu(false);
-      }
-    };
-    if (showMenu) {
-      document.addEventListener("mousedown", handleClickOutside);
-    }
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [showMenu]);
+  const closeMenu = useCallback(() => setShowMenu(false), []);
+  useClickOutside(menuRef, closeMenu, showMenu);
 
   const handleClick = () => {
     setSelectedEntryId(entry.id);

@@ -148,7 +148,7 @@ mod tests {
 
     #[test]
     fn test_build_prompt() {
-        let ollama = OllamaClient::new();
+        let ollama = OllamaClient::new().expect("Failed to create client");
         let safety = SafetyFilter::new();
         let service = ChatService::new(ollama, safety);
 

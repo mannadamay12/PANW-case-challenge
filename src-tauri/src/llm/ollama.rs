@@ -19,17 +19,17 @@ pub struct OllamaClient {
 }
 
 impl OllamaClient {
-    pub fn new() -> Self {
+    pub fn new() -> Result<Self, crate::error::AppError> {
         Self::with_base_url(OLLAMA_BASE_URL.to_string())
     }
 
-    pub fn with_base_url(base_url: String) -> Self {
+    pub fn with_base_url(base_url: String) -> Result<Self, crate::error::AppError> {
         let client = Client::builder()
             .timeout(Duration::from_secs(120))
             .build()
-            .expect("Failed to create HTTP client");
+            .map_err(|e| AppError::Llm(format!("Failed to create HTTP client: {}", e)))?;
 
-        Self { client, base_url }
+        Ok(Self { client, base_url })
     }
 
     /// Check if Ollama is running and if the required model is available.
@@ -122,7 +122,10 @@ impl OllamaClient {
 
         if !response.status().is_success() {
             let status = response.status();
-            let body = response.text().await.unwrap_or_default();
+            let body = response
+                .text()
+                .await
+                .unwrap_or_else(|e| format!("(failed to read body: {})", e));
             return Err(AppError::Llm(format!(
                 "Ollama returned error {}: {}",
                 status, body
@@ -203,7 +206,10 @@ impl OllamaClient {
 
         if !response.status().is_success() {
             let status = response.status();
-            let body = response.text().await.unwrap_or_default();
+            let body = response
+                .text()
+                .await
+                .unwrap_or_else(|e| format!("(failed to read body: {})", e));
             return Err(AppError::Llm(format!(
                 "Ollama returned error {}: {}",
                 status, body
@@ -228,12 +234,6 @@ impl OllamaClient {
 #[derive(Debug, Deserialize)]
 struct NonStreamResponse {
     message: Option<ChatMessageContent>,
-}
-
-impl Default for OllamaClient {
-    fn default() -> Self {
-        Self::new()
-    }
 }
 
 /// Status of Ollama availability.

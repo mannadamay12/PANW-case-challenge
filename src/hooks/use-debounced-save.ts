@@ -69,7 +69,7 @@ export function useDebouncedSave({
       }
     } catch (error) {
       console.error("Debounced save failed:", error);
-      throw error;
+      // Error is already handled by the caller's try/catch - don't rethrow
     }
   }, [onSaveNew, onSaveExisting, clearTimer]);
 

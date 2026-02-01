@@ -1,8 +1,9 @@
 import { AppShell } from "./components/layout/AppShell";
+import { AuthGuard } from "./components/auth";
 import { SetupWizard, wasSetupSkipped } from "./components/setup/SetupWizard";
 import { useModelStatus } from "./hooks/use-ml";
 
-function App() {
+function AppContent() {
   const { data: status, isLoading, refetch } = useModelStatus();
 
   const modelsReady =
@@ -14,6 +15,14 @@ function App() {
       {needsSetup && <SetupWizard onComplete={() => refetch()} />}
       <AppShell />
     </>
+  );
+}
+
+function App() {
+  return (
+    <AuthGuard>
+      <AppContent />
+    </AuthGuard>
   );
 }
 

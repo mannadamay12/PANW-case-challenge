@@ -1,2 +1,2 @@
-export { SetupWizard, wasSetupSkipped, clearSetupSkipped } from "./SetupWizard";
+export { SetupWizard, wasSetupSkipped } from "./SetupWizard";
 export { ProgressBar } from "./ProgressBar";

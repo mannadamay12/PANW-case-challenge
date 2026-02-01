@@ -242,7 +242,3 @@ export function wasSetupSkipped(): boolean {
   return localStorage.getItem(SKIP_STORAGE_KEY) === "true";
 }
 
-// Utility to clear skipped status
-export function clearSetupSkipped(): void {
-  localStorage.removeItem(SKIP_STORAGE_KEY);
-}

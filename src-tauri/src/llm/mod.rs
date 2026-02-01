@@ -17,22 +17,16 @@ pub struct LlmState {
 }
 
 impl LlmState {
-    pub fn new() -> Self {
-        Self {
-            ollama: OllamaClient::new(),
+    pub fn new() -> Result<Self, crate::error::AppError> {
+        Ok(Self {
+            ollama: OllamaClient::new()?,
             safety: SafetyFilter::new(),
-        }
+        })
     }
 
     /// Check if Ollama is available and the required model is ready.
     pub async fn check_status(&self) -> OllamaStatus {
         self.ollama.check_status().await
-    }
-}
-
-impl Default for LlmState {
-    fn default() -> Self {
-        Self::new()
     }
 }
 

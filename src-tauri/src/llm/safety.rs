@@ -1,3 +1,4 @@
+use once_cell::sync::Lazy;
 use regex::RegexSet;
 use serde::Serialize;
 
@@ -27,24 +28,24 @@ const DISTRESS_KEYWORDS: &[&str] = &[
     r"\bgive up\b",
 ];
 
+/// Static regex sets compiled once at startup.
+static CRISIS_REGEX: Lazy<RegexSet> =
+    Lazy::new(|| RegexSet::new(CRISIS_KEYWORDS).expect("Invalid crisis regex patterns"));
+static DISTRESS_REGEX: Lazy<RegexSet> =
+    Lazy::new(|| RegexSet::new(DISTRESS_KEYWORDS).expect("Invalid distress regex patterns"));
+
 /// Safety filter for detecting crisis situations in user messages.
 #[derive(Clone)]
 pub struct SafetyFilter {
-    crisis_patterns: RegexSet,
-    distress_patterns: RegexSet,
+    _private: (),
 }
 
 impl SafetyFilter {
     pub fn new() -> Self {
-        let crisis_patterns =
-            RegexSet::new(CRISIS_KEYWORDS).expect("Failed to compile crisis patterns");
-        let distress_patterns =
-            RegexSet::new(DISTRESS_KEYWORDS).expect("Failed to compile distress patterns");
-
-        Self {
-            crisis_patterns,
-            distress_patterns,
-        }
+        // Force lazy initialization at construction time
+        Lazy::force(&CRISIS_REGEX);
+        Lazy::force(&DISTRESS_REGEX);
+        Self { _private: () }
     }
 
     /// Check a message for safety concerns.
@@ -53,7 +54,7 @@ impl SafetyFilter {
         let lower = text.to_lowercase();
 
         // Check for crisis keywords (hard block)
-        if self.crisis_patterns.is_match(&lower) {
+        if CRISIS_REGEX.is_match(&lower) {
             return SafetyResult {
                 safe: false,
                 level: SafetyLevel::Crisis,
@@ -62,7 +63,7 @@ impl SafetyFilter {
         }
 
         // Check for distress keywords (soft warning)
-        if self.distress_patterns.is_match(&lower) {
+        if DISTRESS_REGEX.is_match(&lower) {
             return SafetyResult {
                 safe: true,
                 level: SafetyLevel::Distress,

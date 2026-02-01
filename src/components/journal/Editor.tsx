@@ -12,6 +12,7 @@ import { useUIStore } from "../../stores/ui-store";
 import { useDebouncedSave, SaveData } from "../../hooks/use-debounced-save";
 import { useSaveOnClose } from "../../hooks/use-save-on-close";
 import { useEmbeddingOnSave } from "../../hooks/use-ml";
+import { useClickOutside } from "../../hooks/use-click-outside";
 import { Button } from "../ui/Button";
 import { Skeleton } from "../ui/Skeleton";
 import { cn } from "../../lib/utils";
@@ -50,17 +51,8 @@ export function Editor() {
   const createInFlightRef = useRef(false);
 
   // Close menu on outside click
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setShowMenu(false);
-      }
-    };
-    if (showMenu) {
-      document.addEventListener("mousedown", handleClickOutside);
-    }
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [showMenu]);
+  const closeMenu = useCallback(() => setShowMenu(false), []);
+  useClickOutside(menuRef, closeMenu, showMenu);
 
   const handleSaveNew = useCallback(
     async (data: SaveData) => {

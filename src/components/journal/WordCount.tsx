@@ -1,13 +1,15 @@
+import { useMemo } from "react";
+
 interface WordCountProps {
   content: string;
   className?: string;
 }
 
 export function WordCount({ content, className = "" }: WordCountProps) {
-  const count = content
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean).length;
+  const count = useMemo(
+    () => content.trim().split(/\s+/).filter(Boolean).length,
+    [content]
+  );
 
   return (
     <span className={`text-xs text-sanctuary-muted ${className}`}>

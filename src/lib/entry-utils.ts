@@ -89,24 +89,6 @@ export function deriveTitle(content: string): string {
 }
 
 /**
- * Get preview text from content (first ~100 chars, excluding title line if present).
- */
-export function getPreviewText(
-  content: string,
-  hasTitle: boolean
-): { text: string; hasMore: boolean } {
-  const lines = content.split("\n");
-  // If we have a title, skip the first line for preview
-  const previewLines = hasTitle ? lines.slice(1) : lines;
-  const previewContent = previewLines.join("\n").trim();
-
-  const text = previewContent.slice(0, 100);
-  const hasMore = previewContent.length > 100;
-
-  return { text, hasMore };
-}
-
-/**
  * Format date for display in entry card.
  */
 export function formatEntryDate(dateString: string): string {

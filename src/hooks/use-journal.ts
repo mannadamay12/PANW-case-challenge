@@ -57,7 +57,7 @@ export function useSearchEntries(query: string, includeArchived = false) {
       if (!debouncedQuery.trim()) return [];
       return invoke<JournalEntry[]>("search_entries", {
         query: debouncedQuery,
-        includeArchived,
+        include_archived: includeArchived,
       });
     },
     enabled: debouncedQuery.trim().length > 0,
@@ -126,9 +126,7 @@ export function useUpdateEntry() {
       if (context?.previousEntry) {
         queryClient.setQueryData(journalKeys.detail(id), context.previousEntry);
       }
-    },
-    onSettled: (_data, _err, { id }) => {
-      // Refetch to ensure consistency
+      // Only invalidate on error to refetch correct state
       queryClient.invalidateQueries({ queryKey: journalKeys.detail(id) });
       queryClient.invalidateQueries({ queryKey: journalKeys.lists() });
     },

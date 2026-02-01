@@ -128,22 +128,25 @@ pub fn list(
     let limit = limit.unwrap_or(50).min(100);
     let offset = offset.unwrap_or(0);
 
-    let mut sql = String::from(
-        "SELECT id, content, title, entry_type, created_at, updated_at, is_archived FROM journals",
-    );
+    // Use static SQL strings to avoid any string formatting
+    let (sql, params): (&str, Vec<rusqlite::types::Value>) = match archived {
+        Some(true) => (
+            "SELECT id, content, title, entry_type, created_at, updated_at, is_archived FROM journals WHERE is_archived = 1 ORDER BY created_at DESC LIMIT ?1 OFFSET ?2",
+            vec![limit.into(), offset.into()],
+        ),
+        Some(false) => (
+            "SELECT id, content, title, entry_type, created_at, updated_at, is_archived FROM journals WHERE is_archived = 0 ORDER BY created_at DESC LIMIT ?1 OFFSET ?2",
+            vec![limit.into(), offset.into()],
+        ),
+        None => (
+            "SELECT id, content, title, entry_type, created_at, updated_at, is_archived FROM journals ORDER BY created_at DESC LIMIT ?1 OFFSET ?2",
+            vec![limit.into(), offset.into()],
+        ),
+    };
 
-    if let Some(archived) = archived {
-        sql.push_str(&format!(
-            " WHERE is_archived = {}",
-            if archived { 1 } else { 0 }
-        ));
-    }
-
-    sql.push_str(" ORDER BY created_at DESC LIMIT ?1 OFFSET ?2");
-
-    let mut stmt = conn.prepare(&sql)?;
-    let journals: Vec<Journal> = stmt
-        .query_map(params![limit, offset], |row| {
+    let mut stmt = conn.prepare(sql)?;
+    let rows: Vec<Result<Journal, rusqlite::Error>> = stmt
+        .query_map(rusqlite::params_from_iter(params), |row| {
             let entry_type_str: Option<String> = row.get(3)?;
             Ok(Journal {
                 id: row.get(0)?,
@@ -159,11 +162,22 @@ pub fn list(
                 is_archived: row.get(6)?,
             })
         })?
-        .filter_map(|r| {
-            r.map_err(|e| log::error!("Failed to parse journal row: {}", e))
-                .ok()
-        })
         .collect();
+
+    let mut journals = Vec::with_capacity(rows.len());
+    let mut error_count = 0;
+    for result in rows {
+        match result {
+            Ok(journal) => journals.push(journal),
+            Err(e) => {
+                log::error!("Failed to parse journal row: {}", e);
+                error_count += 1;
+            }
+        }
+    }
+    if error_count > 0 {
+        log::warn!("Skipped {} corrupted journal rows during list", error_count);
+    }
 
     Ok(journals)
 }
@@ -320,7 +334,7 @@ pub fn search(
     };
 
     let mut stmt = conn.prepare(sql)?;
-    let journals: Vec<Journal> = stmt
+    let rows: Vec<Result<Journal, rusqlite::Error>> = stmt
         .query_map(params![escaped_query], |row| {
             let entry_type_str: Option<String> = row.get(3)?;
             Ok(Journal {
@@ -337,11 +351,25 @@ pub fn search(
                 is_archived: row.get(6)?,
             })
         })?
-        .filter_map(|r| {
-            r.map_err(|e| log::error!("Failed to parse journal row: {}", e))
-                .ok()
-        })
         .collect();
+
+    let mut journals = Vec::with_capacity(rows.len());
+    let mut error_count = 0;
+    for result in rows {
+        match result {
+            Ok(journal) => journals.push(journal),
+            Err(e) => {
+                log::error!("Failed to parse journal row in search: {}", e);
+                error_count += 1;
+            }
+        }
+    }
+    if error_count > 0 {
+        log::warn!(
+            "Skipped {} corrupted journal rows during search",
+            error_count
+        );
+    }
 
     Ok(journals)
 }

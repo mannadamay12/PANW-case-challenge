@@ -1,5 +1,5 @@
-import { useEffect, useRef } from "react";
-import { PanelLeftClose, PanelLeft, Plus, Archive, MessageCircle, BookOpen } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { PanelLeftClose, PanelLeft, Plus, Archive, MessageCircle, BookOpen, Settings } from "lucide-react";
 import { useUIStore } from "../../stores/ui-store";
 import { useDeleteEntry, useGenerateMissingTitles } from "../../hooks/use-journal";
 import { useOllamaStatus } from "../../hooks/use-chat";
@@ -9,6 +9,7 @@ import { SearchBar } from "../journal/SearchBar";
 import { EntryList } from "../journal/EntryList";
 import { Editor } from "../journal/Editor";
 import { ChatView } from "../chat/ChatView";
+import { SettingsModal } from "../settings/SettingsModal";
 import { cn } from "../../lib/utils";
 import logoImage from "../../assets/logo.png";
 
@@ -32,6 +33,7 @@ export function AppShell() {
   const generateMissingTitles = useGenerateMissingTitles();
   const { data: ollamaStatus } = useOllamaStatus();
   const titleGenTriggeredRef = useRef(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   // Generate titles for existing entries without them (once on startup)
   useEffect(() => {
@@ -89,6 +91,14 @@ export function AppShell() {
               title="New entry"
             >
               <Plus className="h-5 w-5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setIsSettingsOpen(true)}
+              title="Settings"
+            >
+              <Settings className="h-5 w-5" />
             </Button>
             <Button variant="ghost" size="icon" onClick={toggleSidebar}>
               <PanelLeftClose className="h-5 w-5" />
@@ -190,6 +200,12 @@ export function AppShell() {
         confirmText="Delete"
         variant="danger"
         isLoading={deleteMutation.isPending}
+      />
+
+      {/* Settings modal */}
+      <SettingsModal
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
       />
     </div>
   );

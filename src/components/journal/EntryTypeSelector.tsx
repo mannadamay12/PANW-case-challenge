@@ -1,6 +1,7 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useCallback } from "react";
 import { Sun, Moon, Heart, PenLine, ChevronDown } from "lucide-react";
 import type { EntryType } from "../../types/journal";
+import { useClickOutside } from "../../hooks/use-click-outside";
 import { cn } from "../../lib/utils";
 
 interface EntryTypeSelectorProps {
@@ -26,17 +27,8 @@ export function EntryTypeSelector({
   const [isOpen, setIsOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
-        setIsOpen(false);
-      }
-    };
-    if (isOpen) {
-      document.addEventListener("mousedown", handleClickOutside);
-    }
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [isOpen]);
+  const closeMenu = useCallback(() => setIsOpen(false), []);
+  useClickOutside(ref, closeMenu, isOpen);
 
   const current = entryTypes.find((t) => t.type === value) ?? entryTypes[3];
   const Icon = current.icon;
