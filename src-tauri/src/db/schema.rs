@@ -13,6 +13,8 @@ pub fn run_migrations(conn: &Connection) -> Result<(), AppError> {
         CREATE TABLE IF NOT EXISTS journals (
             id TEXT PRIMARY KEY,
             content TEXT NOT NULL,
+            title TEXT,
+            entry_type TEXT DEFAULT 'reflection',
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             is_archived BOOLEAN DEFAULT 0
