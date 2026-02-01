@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use candle_core::{DType, Device, IndexOp, Module, Tensor};
+use candle_core::{DType, Device, Module, Tensor};
 use candle_nn::VarBuilder;
 use candle_transformers::models::distilbert::{Config, DistilBertModel};
 use tokenizers::{
@@ -59,6 +59,7 @@ pub struct EmotionPrediction {
 /// Sentiment analysis model using DistilBERT fine-tuned on GoEmotions.
 pub struct SentimentModel {
     model: DistilBertModel,
+    pre_classifier: candle_nn::Linear,
     classifier: candle_nn::Linear,
     tokenizer: Tokenizer,
     device: Device,
@@ -104,7 +105,14 @@ impl SentimentModel {
         let model = DistilBertModel::load(vb.pp("distilbert"), &config)
             .map_err(|e| AppError::Ml(format!("Failed to load model: {}", e)))?;
 
-        // Load classifier head
+        // Load pre_classifier (768 -> 768) and classifier (768 -> 28) heads
+        let pre_classifier = candle_nn::linear(
+            DISTILBERT_HIDDEN_DIM,
+            DISTILBERT_HIDDEN_DIM,
+            vb.pp("pre_classifier"),
+        )
+        .map_err(|e| AppError::Ml(format!("Failed to load pre_classifier: {}", e)))?;
+
         let classifier = candle_nn::linear(
             DISTILBERT_HIDDEN_DIM,
             EMOTION_LABELS.len(),
@@ -114,6 +122,7 @@ impl SentimentModel {
 
         Ok(Self {
             model,
+            pre_classifier,
             classifier,
             tokenizer,
             device,
@@ -133,14 +142,21 @@ impl SentimentModel {
         let attention_mask = encoding.get_attention_mask();
 
         // Convert to tensors
+        // Convert to I64 - candle requires 64-bit integers for embedding lookups
         let input_ids = Tensor::new(input_ids, &self.device)
             .map_err(|e| AppError::Ml(e.to_string()))?
             .unsqueeze(0)
+            .map_err(|e| AppError::Ml(e.to_string()))?
+            .to_dtype(DType::I64)
             .map_err(|e| AppError::Ml(e.to_string()))?;
 
+        // IMPORTANT: Candle's DistilBert uses INVERTED mask logic (1 = mask out, 0 = attend)
+        // See: https://github.com/huggingface/candle/issues/2721
         let attention_mask = Tensor::new(attention_mask, &self.device)
             .map_err(|e| AppError::Ml(e.to_string()))?
             .unsqueeze(0)
+            .map_err(|e| AppError::Ml(e.to_string()))?
+            .eq(0u32)
             .map_err(|e| AppError::Ml(e.to_string()))?;
 
         // Run inference
@@ -149,22 +165,36 @@ impl SentimentModel {
             .forward(&input_ids, &attention_mask)
             .map_err(|e| AppError::Ml(format!("Inference failed: {}", e)))?;
 
-        // Get CLS token representation (first token)
+        // Get CLS token representation (first token), keeping batch dimension
+        // output shape: [batch, seq_len, hidden] -> [batch, hidden]
         let cls_output = output
-            .i((0usize, 0usize))
-            .map_err(|e: candle_core::Error| AppError::Ml(e.to_string()))?;
+            .narrow(1, 0, 1)
+            .map_err(|e| AppError::Ml(e.to_string()))?
+            .squeeze(1)
+            .map_err(|e| AppError::Ml(e.to_string()))?;
 
-        // Apply classifier head
+        // Apply pre_classifier -> ReLU -> classifier
+        let hidden = self
+            .pre_classifier
+            .forward(&cls_output)
+            .map_err(|e| AppError::Ml(format!("Pre-classifier failed: {}", e)))?;
+
+        let hidden = hidden
+            .relu()
+            .map_err(|e| AppError::Ml(format!("ReLU failed: {}", e)))?;
+
         let logits = self
             .classifier
-            .forward(&cls_output)
+            .forward(&hidden)
             .map_err(|e| AppError::Ml(format!("Classifier failed: {}", e)))?;
 
         // Apply sigmoid for multi-label classification
         let probs = sigmoid(&logits)?;
 
-        // Convert to predictions
+        // Convert to predictions (squeeze batch dim first)
         let probs_vec: Vec<f32> = probs
+            .squeeze(0)
+            .map_err(|e| AppError::Ml(e.to_string()))?
             .to_vec1()
             .map_err(|e| AppError::Ml(e.to_string()))?;
 
