@@ -436,8 +436,7 @@ mindscribe/
 ├── assets/                       # Documentation assets
 │   ├── arch.png                  # System architecture diagram
 │   ├── ml.png                    # ML pipeline diagram
-│   ├── technical_doc.md          # API specifications
-│   └── mindScribe.md             # Architecture blueprint
+│   └── technical_doc.md          # API specifications
 └── DOCUMENTATION.md              # This file
 ```
 

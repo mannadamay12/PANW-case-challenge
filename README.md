@@ -83,8 +83,7 @@ mindscribe/
 ├── assets/                 # Documentation assets
 │   ├── arch.png            # System architecture diagram
 │   ├── ml.png              # ML pipeline diagram
-│   ├── technical_doc.md    # API specifications
-│   └── mindScribe.md       # Architecture blueprint
+│   └── technical_doc.md    # API specifications
 └── DOCUMENTATION.md        # Design documentation
 ```
 
@@ -92,7 +91,6 @@ mindscribe/
 
 - [Design Documentation](DOCUMENTATION.md) - Architecture decisions and technical deep-dive
 - [Technical Specs](assets/technical_doc.md) - API specifications and database schema
-- [Architecture Blueprint](assets/mindScribe.md) - Original research and design rationale
 
 ## Development
 
