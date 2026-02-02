@@ -4,6 +4,11 @@
 
 MindScribe is a privacy-preserving journaling application that runs AI capabilities entirely on your device. Your thoughts never leave your computer.
 
+## Submission Video
+
+[Demo Presentation](https://drive.google.com/drive/folders/1O5QM7EgUz3ahaWDcI0gZgYw3mMMysLV1?usp=sharing)
+
+
 ## Features
 
 - **Private Journaling** - Auto-saving editor with markdown support and image attachments
